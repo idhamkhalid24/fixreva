@@ -1,0 +1,1675 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Rocky Hijab - POS System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; -webkit-tap-highlight-color: transparent; }
+        .modal-backdrop { background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px); }
+        .tab-active { background-color: #2563eb; color: white; }
+        .tab-inactive { background-color: #f3f4f6; color: #6b7280; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen text-gray-800">
+
+    <div id="app" class="max-w-md mx-auto min-h-screen bg-white shadow-xl relative pb-20 overflow-x-hidden">
+        
+        <div id="loading" class="fixed inset-0 bg-black/50 z-[100] hidden flex items-center justify-center">
+            <div class="bg-white p-5 rounded-lg flex flex-col items-center shadow-2xl">
+                <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mb-2"></div>
+                <p class="text-sm font-medium">Memproses...</p>
+            </div>
+        </div>
+
+        <div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 z-[101] bg-gray-800 text-white px-4 py-2 rounded-full text-sm transform scale-0 transition-transform duration-300 shadow-lg">
+            Pesan Notifikasi
+        </div>
+
+        <!-- Modal Absen -->
+        <div id="absen-modal" class="fixed inset-0 bg-black/50 z-[200] hidden flex items-center justify-center p-4 modal-backdrop">
+            <div class="bg-white rounded-2xl w-full max-w-xs p-6 shadow-2xl transform transition-all">
+                <div class="text-center mb-4">
+                    <i class="fas fa-check-circle text-green-500 text-5xl mb-3"></i>
+                    <h3 class="text-lg font-bold text-gray-800">✅ Absen Berhasil!</h3>
+                    <p class="text-xs text-gray-500 mt-1">Data absensi sudah tersimpan.</p>
+                </div>
+                <div class="mb-4 p-3 bg-blue-50 rounded-xl">
+                    <p class="text-xs text-blue-700 text-center">Ingin mengirim laporan ke Admin via WhatsApp?</p>
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="closeAbsenModalAndSkipWA()" class="flex-1 py-2.5 bg-gray-200 rounded-xl font-medium text-sm">Tidak, Lewati</button>
+                    <button onclick="confirmSendWA()" class="flex-1 py-2.5 bg-green-600 text-white rounded-xl font-medium text-sm flex items-center justify-center gap-1">
+                        <i class="fab fa-whatsapp text-sm"></i> Kirim WA
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Reset -->
+        <div id="reset-modal" class="fixed inset-0 bg-black/70 z-[200] hidden flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl w-full max-w-xs p-6 shadow-2xl">
+                <div class="text-center mb-4">
+                    <i class="fas fa-shield-alt text-red-500 text-4xl mb-2"></i>
+                    <h3 class="text-lg font-bold text-gray-800">Reset Perangkat</h3>
+                    <p class="text-xs text-gray-500">Masukkan password reset untuk melanjutkan</p>
+                </div>
+                <input type="password" id="reset-password" placeholder="Masukkan password" class="w-full p-3 border rounded-xl mb-4 text-center text-lg font-bold outline-none focus:ring-2 focus:ring-red-500">
+                <div class="flex gap-3">
+                    <button onclick="closeResetModal()" class="flex-1 py-2 bg-gray-200 rounded-xl font-medium">Batal</button>
+                    <button onclick="confirmReset()" class="flex-1 py-2 bg-red-600 text-white rounded-xl font-medium">Reset</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Import -->
+        <div id="import-modal" class="fixed inset-0 bg-black/70 z-[200] hidden flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+                <div class="text-center mb-4">
+                    <i class="fas fa-cloud-upload-alt text-green-500 text-4xl mb-2"></i>
+                    <h3 class="text-lg font-bold text-gray-800">Import Data</h3>
+                    <p class="text-xs text-gray-500">Tempel kode backup di bawah ini</p>
+                </div>
+                <textarea id="import-data" rows="6" class="w-full p-3 border rounded-xl text-xs font-mono outline-none focus:ring-2 focus:ring-green-500" placeholder='{"version":"7.0","timestamp":"2026-04-14 13:04:15","data":{...}}'></textarea>
+                <div class="flex gap-3 mt-4">
+                    <button onclick="closeImportModal()" class="flex-1 py-2 bg-gray-200 rounded-xl font-medium">Batal</button>
+                    <button onclick="processImport()" class="flex-1 py-2 bg-green-600 text-white rounded-xl font-medium">Import</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Import User Manual -->
+        <div id="import-user-modal" class="fixed inset-0 bg-black/70 z-[200] hidden flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+                <div class="text-center mb-4">
+                    <i class="fas fa-user-plus text-blue-500 text-4xl mb-2"></i>
+                    <h3 class="text-lg font-bold text-gray-800">Import User Manual</h3>
+                    <p class="text-xs text-gray-500">Pilih metode import user</p>
+                </div>
+                
+                <div class="space-y-3 mb-4">
+                    <div class="border rounded-xl p-3">
+                        <label class="text-sm font-medium text-gray-700 block mb-2">
+                            📁 Upload File JSON
+                        </label>
+                        <input type="file" id="import-user-file" accept=".json" class="w-full text-sm">
+                        <p class="text-[10px] text-gray-400 mt-1">Upload file export dari sheet (.json)</p>
+                    </div>
+                    
+                    <div class="border rounded-xl p-3">
+                        <label class="text-sm font-medium text-gray-700 block mb-2">
+                            🌐 Download dari Google Sheet
+                        </label>
+                        <input type="text" id="import-username" placeholder="Masukkan Username" class="w-full p-2 border rounded-lg text-sm mb-2">
+                        <button onclick="downloadUserFromSheet()" class="w-full bg-blue-500 text-white py-2 rounded-lg text-sm font-medium">
+                            <i class="fas fa-download"></i> Download & Import
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="flex gap-3">
+                    <button onclick="closeImportUserModal()" class="flex-1 py-2 bg-gray-200 rounded-xl font-medium">Tutup</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Sync User -->
+        <div id="sync-user-modal" class="fixed inset-0 bg-black/70 z-[200] hidden flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+                <div class="text-center mb-4">
+                    <i class="fas fa-users text-blue-500 text-4xl mb-2"></i>
+                    <h3 class="text-lg font-bold text-gray-800">Sinkronisasi Data User</h3>
+                    <p class="text-xs text-gray-500">Ambil data user dari Google Sheet</p>
+                </div>
+                <div class="mb-4">
+                    <p class="text-sm text-gray-600 mb-2">Masukkan PIN Admin untuk melanjutkan:</p>
+                    <input type="password" id="sync-admin-pin" placeholder="PIN Admin" class="w-full p-3 border rounded-xl text-center text-lg font-bold outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="closeSyncUserModal()" class="flex-1 py-2 bg-gray-200 rounded-xl font-medium">Batal</button>
+                    <button onclick="syncUsersFromSheet()" class="flex-1 py-2 bg-blue-600 text-white rounded-xl font-medium flex items-center justify-center gap-2">
+                        <i class="fas fa-sync-alt"></i> Sinkronkan
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="page-content"></div>
+
+        <nav id="bottom-nav" class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white border-t border-gray-200 flex justify-around items-center h-16 z-50 hidden">
+            <button onclick="router.navigate('home')" class="flex flex-col items-center text-gray-400 focus:text-blue-600 transition-all">
+                <i class="fas fa-home text-xl"></i><span class="text-[10px] mt-0.5">Beranda</span>
+            </button>
+            <button onclick="router.navigate('pos')" class="flex flex-col items-center text-gray-400 focus:text-blue-600 transition-all">
+                <i class="fas fa-cash-register text-xl"></i><span class="text-[10px] mt-0.5">POS</span>
+            </button>
+            <button onclick="router.navigate('report')" class="flex flex-col items-center text-gray-400 focus:text-blue-600 transition-all">
+                <i class="fas fa-chart-bar text-xl"></i><span class="text-[10px] mt-0.5">Laporan</span>
+            </button>
+            <button onclick="router.navigate('history')" class="flex flex-col items-center text-gray-400 focus:text-blue-600 transition-all">
+                <i class="fas fa-history text-xl"></i><span class="text-[10px] mt-0.5">Riwayat</span>
+            </button>
+            <button onclick="router.navigate('settings')" class="flex flex-col items-center text-gray-400 focus:text-blue-600 transition-all">
+                <i class="fas fa-user-cog text-xl"></i><span class="text-[10px] mt-0.5">Sistem</span>
+            </button>
+        </nav>
+    </div>
+
+    <script>
+        /** ==================== KONFIGURASI ==================== **/
+        const ADMIN_WA = "6281514696906";
+        const OFFICE_LOC = { lat: -6.786168, lng: 106.780918 };
+        const RADIUS_LIMIT = 200;
+        const RESET_PASSWORD = "rockyhijab";
+        const ADMIN_PIN = "123456";
+        
+        // ⚠️ GANTI URL INI DENGAN URL Google Apps Script ANDA setelah deploy!
+        const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwKx05S6bScllNDJ7DHY4wbqes8uMbJt-tpREEeIZzjMCuGIePiNUBzFdZBFPS06Z60/exec";
+
+        let currentUser = null;
+        let currentPos = null;
+        let db;
+        let currentFilter = 'daily';
+        let rangeStartDate = null;
+        let rangeEndDate = null;
+        let pendingClockInData = null;
+        let currentPage = 'home';
+        
+        let cachedTransactions = [];
+        let cachedAttendance = [];
+        const SYNC_INTERVAL = 30000;
+
+        // ==================== FUNGSI WAKTU ====================
+        function getWIBForSheet() {
+            const now = new Date();
+            const wibTime = new Date(now.getTime() + (7 * 60 * 60 * 1000));
+            return wibTime.toISOString().replace('T', ' ').slice(0, 19);
+        }
+
+        function getTodayWIB() {
+            const now = new Date();
+            const wibTime = new Date(now.getTime() + (7 * 60 * 60 * 1000));
+            return wibTime.toISOString().slice(0, 10);
+        }
+
+        function formatWIBTime(timeStr) {
+            if (!timeStr) return '-';
+            // Jika format UTC, konversi
+            if (timeStr.includes('T') || timeStr.includes('Z')) {
+                const utcDate = new Date(timeStr);
+                const wibDate = new Date(utcDate.getTime() + (7 * 60 * 60 * 1000));
+                return wibDate.toISOString().replace('T', ' ').slice(0, 19);
+            }
+            return timeStr.replace('T', ' ').slice(0, 19);
+        }
+
+        function extractDateFromTime(timeStr) {
+            if (!timeStr) return '';
+            // Jika format UTC
+            if (timeStr.includes('T') || timeStr.includes('Z')) {
+                const utcDate = new Date(timeStr);
+                const wibDate = new Date(utcDate.getTime() + (7 * 60 * 60 * 1000));
+                return wibDate.toISOString().slice(0, 10);
+            }
+            return timeStr.slice(0, 10);
+        }
+
+        function getNamaBulan(month) {
+            const bulan = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 
+                           'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+            return bulan[month - 1];
+        }
+
+        function getDaysUntilToday(year, month) {
+            const todayWIB = getTodayWIB();
+            const todayDate = parseInt(todayWIB.split('-')[2]);
+            const currentYear = parseInt(todayWIB.split('-')[0]);
+            const currentMonth = parseInt(todayWIB.split('-')[1]);
+            
+            if (year === currentYear && month === currentMonth) {
+                return todayDate;
+            }
+            return new Date(year, month, 0).getDate();
+        }
+
+        function formatRupiah(angka) {
+            if (!angka && angka !== 0) return '';
+            return new Intl.NumberFormat('id-ID').format(angka);
+        }
+
+        // ==================== DATABASE ====================
+        const initDB = () => {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open("AttendancePOSDB", 28);
+                request.onupgradeneeded = (e) => {
+                    db = e.target.result;
+                    if (!db.objectStoreNames.contains("users")) 
+                        db.createObjectStore("users", { keyPath: "username" });
+                    if (!db.objectStoreNames.contains("attendance")) 
+                        db.createObjectStore("attendance", { keyPath: "id", autoIncrement: true });
+                    if (!db.objectStoreNames.contains("transactions")) 
+                        db.createObjectStore("transactions", { keyPath: "id", autoIncrement: true });
+                };
+                request.onsuccess = (e) => {
+                    db = e.target.result;
+                    resolve();
+                };
+                request.onerror = (e) => reject(e);
+            });
+        };
+
+        const dbAction = (storeName, method, data = null) => {
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(storeName, "readwrite");
+                const store = tx.objectStore(storeName);
+                let request;
+                if (method === 'add') request = store.add(data);
+                else if (method === 'get') request = store.get(data);
+                else if (method === 'put') request = store.put(data);
+                else if (method === 'getAll') request = store.getAll();
+                else if (method === 'delete') request = store.delete(data);
+                else if (method === 'clear') request = store.clear();
+                
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+        };
+
+        // ==================== LOAD CACHE ====================
+        const loadCache = async () => {
+            if (!currentUser) return;
+            const allTrx = await dbAction('transactions', 'getAll');
+            cachedTransactions = allTrx.filter(t => t.user === currentUser.username);
+            const allAtt = await dbAction('attendance', 'getAll');
+            cachedAttendance = allAtt.filter(a => a.user === currentUser.username);
+            
+            const todayWIB = getTodayWIB();
+            const hasAbsenToday = cachedAttendance.some(a => extractDateFromTime(a.time) === todayWIB);
+            localStorage.setItem('has_clocked_in', hasAbsenToday ? 'true' : 'false');
+            if (hasAbsenToday) {
+                localStorage.setItem('last_attendance_date', todayWIB);
+            }
+            
+            console.log(`📦 Cache: ${cachedTransactions.length} transaksi, ${cachedAttendance.length} absensi`);
+        };
+
+        // ==================== FORCE SYNC AFTER CLEAR DATA ====================
+        const forceSyncAfterClear = async () => {
+            if (!currentUser || !navigator.onLine) return false;
+            
+            try {
+                console.log('🔄 Force sync after clear data...');
+                const url = `${GAS_WEB_APP_URL}?action=get&type=attendance&user=${currentUser.username}&t=${Date.now()}`;
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data?.success && data.data && data.data.length > 0) {
+                    const allLocal = await dbAction('attendance', 'getAll');
+                    for (const local of allLocal) {
+                        if (local.user === currentUser.username) {
+                            await dbAction('attendance', 'delete', local.id);
+                        }
+                    }
+                    
+                    for (const att of data.data) {
+                        let attendanceTime = att.time;
+                        if (attendanceTime && (attendanceTime.includes('T') || attendanceTime.includes('Z'))) {
+                            const utcDate = new Date(attendanceTime);
+                            const wibDate = new Date(utcDate.getTime() + (7 * 60 * 60 * 1000));
+                            attendanceTime = wibDate.toISOString().replace('T', ' ').slice(0, 19);
+                        }
+                        
+                        await dbAction('attendance', 'add', {
+                            id: att.id,
+                            user: att.user,
+                            name: att.name,
+                            time: attendanceTime,
+                            loc: att.lat && att.lng ? { lat: att.lat, lng: att.lng } : null
+                        });
+                    }
+                    
+                    await loadCache();
+                    
+                    const todayWIB = getTodayWIB();
+                    const hasAbsenToday = cachedAttendance.some(a => extractDateFromTime(a.time) === todayWIB);
+                    
+                    if (hasAbsenToday) {
+                        console.log('✅ Attendance restored from server');
+                        return true;
+                    }
+                }
+                return false;
+            } catch (e) {
+                console.error('Force sync error:', e);
+                return false;
+            }
+        };
+
+        // ==================== SYNC ATTENDANCE ====================
+        const syncAttendanceFromServer = async (showMsg = false) => {
+            if (!currentUser) return;
+            if (showMsg) showToast("🔄 Sinkronisasi absensi...");
+            try {
+                const url = `${GAS_WEB_APP_URL}?action=get&type=attendance&user=${currentUser.username}&t=${Date.now()}`;
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                console.log('📥 Raw attendance data:', data);
+                
+                if (data?.success && data.data && data.data.length > 0) {
+                    const allLocal = await dbAction('attendance', 'getAll');
+                    for (const local of allLocal) {
+                        if (local.user === currentUser.username) {
+                            await dbAction('attendance', 'delete', local.id);
+                        }
+                    }
+                    
+                    for (const att of data.data) {
+                        let attendanceTime = att.time;
+                        
+                        // Konversi UTC ke WIB jika perlu
+                        if (attendanceTime && (attendanceTime.includes('T') || attendanceTime.includes('Z'))) {
+                            const utcDate = new Date(attendanceTime);
+                            const wibDate = new Date(utcDate.getTime() + (7 * 60 * 60 * 1000));
+                            attendanceTime = wibDate.toISOString().replace('T', ' ').slice(0, 19);
+                            console.log(`🔄 Converted time: ${att.time} -> ${attendanceTime}`);
+                        }
+                        
+                        if (!attendanceTime || attendanceTime === '') {
+                            attendanceTime = getWIBForSheet();
+                        }
+                        
+                        await dbAction('attendance', 'add', {
+                            id: att.id,
+                            user: att.user,
+                            name: att.name,
+                            time: attendanceTime,
+                            loc: att.lat && att.lng ? { lat: att.lat, lng: att.lng } : null
+                        });
+                    }
+                    
+                    await loadCache();
+                    
+                    if (currentPage === 'home') {
+                        await updateHomeStatus();
+                    }
+                    if (currentPage === 'report') {
+                        await renderReport();
+                    }
+                    if (currentPage === 'pos') {
+                        await updatePosStatus();
+                    }
+                    
+                    const todayWIB = getTodayWIB();
+                    const todayAttendance = data.data.filter(a => {
+                        const attDate = a.time ? a.time.slice(0, 10) : '';
+                        return attDate === todayWIB;
+                    });
+                    
+                    if (showMsg) showToast(`✅ Sinkron absensi: ${data.data.length} record (hari ini: ${todayAttendance.length})`);
+                    return true;
+                } else {
+                    if (showMsg) showToast("Tidak ada data absensi di server");
+                    return false;
+                }
+            } catch (e) { 
+                console.error("Error sync attendance:", e);
+                if (showMsg) showToast("⚠️ Gagal sync absensi", true);
+                return false;
+            }
+        };
+
+        // ==================== SYNC TO SERVER ====================
+        const syncToServer = async (type, data) => {
+            if (GAS_WEB_APP_URL.includes("YOUR_DEPLOYMENT_ID")) return;
+            try {
+                await fetch(GAS_WEB_APP_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        type: type,
+                        user: currentUser?.username || 'system',
+                        timestamp: getWIBForSheet(),
+                        payload: data
+                    })
+                });
+                console.log(`✅ Sync ${type} ok`);
+            } catch (e) { console.error(e); }
+        };
+
+        const syncFromServer = async (showMsg = false) => {
+            if (!currentUser) return;
+            if (showMsg) showToast("🔄 Sinkronisasi...");
+            try {
+                const url = `${GAS_WEB_APP_URL}?action=get&type=transactions&user=${currentUser.username}&t=${Date.now()}`;
+                const response = await fetch(url);
+                const data = await response.json();
+                if (data?.success && data.data) {
+                    const allLocal = await dbAction('transactions', 'getAll');
+                    for (const local of allLocal) {
+                        if (local.user === currentUser.username) await dbAction('transactions', 'delete', local.id);
+                    }
+                    for (const trx of data.data) {
+                        if (trx.user === currentUser.username) {
+                            await dbAction('transactions', 'add', {
+                                id: trx.id, user: trx.user, name: trx.name,
+                                amount: trx.amount, note: trx.note, time: trx.time, serverId: trx.id
+                            });
+                        }
+                    }
+                }
+                
+                await syncAttendanceFromServer(false);
+                await loadCache();
+                refreshCurrentPage();
+                if (showMsg) showToast("✅ Sinkronisasi selesai");
+            } catch (e) { 
+                console.error("Sync error:", e);
+                if (showMsg) showToast("⚠️ Gagal sync", true); 
+            }
+        };
+
+        const startAutoSync = () => {
+            setInterval(async () => {
+                if (currentUser && navigator.onLine) {
+                    await syncFromServer(false);
+                }
+            }, SYNC_INTERVAL);
+        };
+
+        const refreshCurrentPage = async () => {
+            if (currentPage === 'home') {
+                await updateBonusUI();
+                await updateHomeStatus();
+            } else if (currentPage === 'history') await renderHistory();
+            else if (currentPage === 'report') await renderReport();
+            else if (currentPage === 'pos') await updatePosStatus();
+        };
+
+        // ==================== CEK ABSEN ====================
+        const hasClockedInToday = async () => {
+            const todayWIB = getTodayWIB();
+            const lastAttendanceDate = localStorage.getItem('last_attendance_date');
+            
+            if (lastAttendanceDate === todayWIB) {
+                return true;
+            }
+            
+            const hasAbsen = cachedAttendance.some(a => extractDateFromTime(a.time) === todayWIB);
+            
+            if (hasAbsen) {
+                localStorage.setItem('has_clocked_in', 'true');
+                localStorage.setItem('last_attendance_date', todayWIB);
+            } else {
+                localStorage.setItem('has_clocked_in', 'false');
+            }
+            
+            return hasAbsen;
+        };
+
+        function calculateBonus(omzet) {
+            return Math.floor(omzet / 10000000) * 150000;
+        }
+
+        const updateBonusUI = async () => {
+            const today = new Date();
+            const currentYear = today.getFullYear();
+            const currentMonth = today.getMonth() + 1;
+            const monthStr = String(currentMonth).padStart(2, '0');
+            
+            const total = cachedTransactions
+                .filter(t => {
+                    const tDate = extractDateFromTime(t.time);
+                    if (!tDate) return false;
+                    const [tYear, tMonth] = tDate.split('-');
+                    return parseInt(tYear) === currentYear && tMonth === monthStr;
+                })
+                .reduce((a, b) => a + (b.amount || 0), 0);
+            
+            const bonus = calculateBonus(total);
+            
+            const omzetEl = document.getElementById('total-omzet');
+            const bonusEl = document.getElementById('bonus-text');
+            if (omzetEl) {
+                omzetEl.innerText = `Rp ${formatRupiah(total)}`;
+                if (bonusEl) bonusEl.innerText = `🎁 Bonus Bulan ${getNamaBulan(currentMonth)}: Rp ${formatRupiah(bonus)}`;
+            }
+        };
+
+        // ==================== DELETE TRANSACTION ====================
+        const deleteTransaction = async (id, serverId = null) => {
+            const pin = prompt("Konfirmasi hapus transaksi. Masukkan PIN Anda:");
+            if (!pin) return;
+            if (pin !== currentUser.pin) return showToast("PIN Salah!", true);
+
+            setLoading(true);
+            try {
+                if (serverId && serverId !== 'null') {
+                    await syncToServer('delete_transaction', { id, serverId: serverId.toString() });
+                }
+                await dbAction('transactions', 'delete', id);
+                cachedTransactions = cachedTransactions.filter(t => t.id !== id);
+                await syncFromServer(false);
+                await renderHistory();
+                await updateBonusUI();
+                showToast("✅ Transaksi dihapus!");
+            } catch (e) { showToast("Gagal hapus", true); }
+            setLoading(false);
+        };
+
+        // ==================== ABSEN ====================
+        const handleClockIn = async () => {
+            const lastAttendanceDate = localStorage.getItem('last_attendance_date');
+            const todayWIB = getTodayWIB();
+            
+            if (lastAttendanceDate === todayWIB) {
+                showToast("Sudah absen hari ini!");
+                return;
+            }
+            
+            if (await hasClockedInToday()) {
+                showToast("Sudah absen hari ini!");
+                return;
+            }
+            
+            if (!currentPos) return showToast("Tunggu lokasi!", true);
+
+            const dist = calculateDistance(currentPos.lat, currentPos.lng, OFFICE_LOC.lat, OFFICE_LOC.lng);
+            if (dist > RADIUS_LIMIT) return showToast(`Di luar radius (${Math.round(dist)}m)`, true);
+            
+            setLoading(true);
+            try {
+                const clockData = { 
+                    user: currentUser.username, 
+                    name: currentUser.name, 
+                    time: getWIBForSheet(), 
+                    loc: currentPos 
+                };
+                
+                const newId = await dbAction('attendance', 'add', clockData);
+                clockData.id = newId;
+                
+                cachedAttendance.push(clockData);
+                
+                localStorage.setItem('has_clocked_in', 'true');
+                localStorage.setItem('last_attendance_date', getTodayWIB());
+                
+                syncToServer('attendance', clockData).catch(e => console.warn('Sync failed:', e));
+                
+                showAbsenModal(clockData);
+                
+                if (currentPage === 'home') await updateHomeStatus();
+                if (currentPage === 'pos') await updatePosStatus();
+                if (currentPage === 'report') await renderReport();
+                
+            } catch (e) { 
+                console.error('Absen error:', e);
+                showToast("Gagal absen", true); 
+            }
+            setLoading(false);
+        };
+
+        // ==================== TRANSAKSI ====================
+        const handleTransaction = async () => {
+            if (!(await hasClockedInToday())) {
+                showToast("❌ Absen dulu sebelum transaksi!", true);
+                setTimeout(() => router.navigate('home'), 1500);
+                return;
+            }
+            
+            const amountInput = document.getElementById('pos-amount');
+            let amount = parseInt(amountInput.getAttribute('data-numeric')) || 0;
+            const note = document.getElementById('pos-note').value;
+            
+            if (!amount || amount <= 0) return showToast("Nominal tidak valid!", true);
+
+            setLoading(true);
+            try {
+                const trx = {
+                    user: currentUser.username, name: currentUser.name,
+                    amount, note: note || "Transaksi", time: getWIBForSheet()
+                };
+                const newId = await dbAction('transactions', 'add', trx);
+                trx.id = newId;
+                cachedTransactions.unshift(trx);
+                syncToServer('transaction', trx);
+                showToast("✅ Transaksi Disimpan!");
+                
+                amountInput.value = '';
+                amountInput.setAttribute('data-numeric', '0');
+                document.getElementById('pos-note').value = '';
+                await updateBonusUI();
+                
+                if (confirm("Transaksi berhasil! Ingin menambah lagi?")) {
+                    document.getElementById('pos-note').focus();
+                } else {
+                    router.navigate('history');
+                }
+            } catch (e) { showToast("Gagal transaksi", true); }
+            setLoading(false);
+        };
+
+        // ==================== UTILITY ====================
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371e3;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        }
+
+        const showToast = (msg, isError = false) => {
+            const toast = document.getElementById('toast');
+            toast.innerText = msg;
+            toast.classList.remove('scale-0');
+            if (isError) toast.classList.add('bg-red-600');
+            else toast.classList.remove('bg-red-600');
+            setTimeout(() => toast.classList.add('scale-0'), 3000);
+        };
+
+        const setLoading = (state) => {
+            const el = document.getElementById('loading');
+            if (el) el.style.display = state ? 'flex' : 'none';
+        };
+
+        const sendWA = (msg) => {
+            window.open(`https://wa.me/${ADMIN_WA}?text=${encodeURIComponent(msg)}`, '_blank');
+        };
+
+        const updateHomeStatus = async () => {
+            const todayWIB = getTodayWIB();
+            const lastAttendanceDate = localStorage.getItem('last_attendance_date');
+            const hasAbsen = lastAttendanceDate === todayWIB || await hasClockedInToday();
+            
+            const statusContainer = document.querySelector('#home-status');
+            
+            if (hasAbsen) {
+                if (statusContainer) {
+                    statusContainer.innerHTML = `
+                        <div class="bg-green-50 rounded-xl p-5 text-center">
+                            <i class="fas fa-check-circle text-4xl text-green-500 mb-2"></i>
+                            <p class="font-bold text-green-800">✅ Sudah Absen</p>
+                            <p class="text-xs text-green-600 mt-1">Anda sudah absen hari ini</p>
+                        </div>
+                    `;
+                }
+            } else {
+                if (statusContainer) {
+                    const dist = currentPos ? calculateDistance(currentPos.lat, currentPos.lng, OFFICE_LOC.lat, OFFICE_LOC.lng) : null;
+                    const isDisabled = !currentPos || (dist && dist > RADIUS_LIMIT);
+                    statusContainer.innerHTML = `
+                        <button id="btn-absen" onclick="handleClockIn()" ${isDisabled ? 'disabled' : ''} class="w-full bg-blue-600 disabled:bg-gray-300 text-white p-4 rounded-xl font-bold">
+                            📍 ABSEN SEKARANG
+                        </button>
+                    `;
+                }
+            }
+        };
+
+        const updateLocation = () => {
+            const info = document.getElementById('loc-info');
+            if (!navigator.geolocation) {
+                if (info) info.innerText = "GPS tidak didukung";
+                return;
+            }
+            navigator.geolocation.getCurrentPosition((pos) => {
+                currentPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                const dist = calculateDistance(currentPos.lat, currentPos.lng, OFFICE_LOC.lat, OFFICE_LOC.lng);
+                if (info) {
+                    if (dist <= RADIUS_LIMIT) info.innerHTML = `<span class="text-green-600 font-bold">📍 Dalam Radius (${Math.round(dist)}m)</span>`;
+                    else info.innerHTML = `<span class="text-red-500 font-bold">❌ Diluar Radius (${Math.round(dist)}m)</span>`;
+                }
+                updateHomeStatus();
+            }, () => { if (info) info.innerText = "⚠️ Gagal ambil lokasi"; });
+        };
+
+        const updatePosStatus = async () => {
+            const hasAbsen = await hasClockedInToday();
+            const statusDiv = document.getElementById('pos-status');
+            const btnTransaksi = document.getElementById('btn-transaksi');
+            if (statusDiv) {
+                statusDiv.innerHTML = hasAbsen ? `
+                    <div class="bg-green-100 border border-green-300 rounded-xl p-3 mb-4 flex items-center gap-2">
+                        <i class="fas fa-check-circle text-green-600"></i>
+                        <span class="text-green-700 text-sm">✅ Siap melakukan transaksi</span>
+                    </div>
+                ` : `
+                    <div class="bg-red-100 border border-red-300 rounded-xl p-3 mb-4 flex items-center gap-2">
+                        <i class="fas fa-times-circle text-red-600"></i>
+                        <span class="text-red-700 text-sm">❌ Absen dulu sebelum transaksi!</span>
+                    </div>
+                `;
+            }
+            if (btnTransaksi) btnTransaksi.disabled = !hasAbsen;
+        };
+
+        // ==================== FITUR IMPORT USER MANUAL ====================
+        const showImportUserModal = () => {
+            document.getElementById('import-user-modal').classList.remove('hidden');
+            document.getElementById('import-username').value = '';
+            document.getElementById('import-user-file').value = '';
+        };
+
+        const closeImportUserModal = () => {
+            document.getElementById('import-user-modal').classList.add('hidden');
+        };
+
+        const handleUserFileUpload = async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            setLoading(true);
+            
+            try {
+                const text = await file.text();
+                const backup = JSON.parse(text);
+                
+                if (!backup.data || !backup.data.users) {
+                    throw new Error('Format file tidak valid');
+                }
+                
+                const overwrite = confirm('Timpa data user yang sudah ada? (Ya = timpa, Tidak = tambah)');
+                
+                let importedCount = 0;
+                for (const user of backup.data.users) {
+                    if (overwrite) {
+                        await dbAction('users', 'put', user);
+                    } else {
+                        const existing = await dbAction('users', 'get', user.username);
+                        if (!existing) {
+                            await dbAction('users', 'add', user);
+                        }
+                    }
+                    importedCount++;
+                }
+                
+                showToast(`✅ Berhasil import ${importedCount} user!`);
+                closeImportUserModal();
+                
+                if (currentPage === 'login' || !currentUser) {
+                    router.navigate('login');
+                }
+                
+            } catch (error) {
+                console.error('Import error:', error);
+                showToast('❌ Gagal import file: ' + error.message, true);
+            }
+            
+            setLoading(false);
+        };
+
+        const downloadUserFromSheet = async () => {
+            const username = document.getElementById('import-username')?.value;
+            if (!username) {
+                showToast('Masukkan username!', true);
+                return;
+            }
+            
+            setLoading(true);
+            
+            try {
+                if (!navigator.onLine) {
+                    showToast('Tidak ada koneksi internet!', true);
+                    setLoading(false);
+                    return;
+                }
+                
+                const url = `${GAS_WEB_APP_URL}?action=export&type=users&userId=${encodeURIComponent(username)}&t=${Date.now()}`;
+                const response = await fetch(url);
+                const exportData = await response.json();
+                
+                if (exportData && exportData.data && exportData.data.users && exportData.data.users.length > 0) {
+                    const user = exportData.data.users[0];
+                    
+                    await dbAction('users', 'put', user);
+                    
+                    showToast(`✅ User ${user.name} berhasil diimport!`);
+                    closeImportUserModal();
+                    
+                    if (currentPage === 'login' || !currentUser) {
+                        router.navigate('login');
+                    }
+                } else {
+                    showToast(`User "${username}" tidak ditemukan di sheet`, true);
+                }
+                
+            } catch (error) {
+                console.error('Download error:', error);
+                showToast('❌ Gagal download user: ' + error.message, true);
+            }
+            
+            setLoading(false);
+        };
+
+        // ==================== LOGIN DENGAN SYNC KE SHEET ====================
+        const handleLoginWithSheetSync = async () => {
+            const user = document.getElementById('login-user')?.value;
+            const pin = document.getElementById('login-pin')?.value;
+            
+            if (!user || !pin) return showToast("Lengkapi data!", true);
+            
+            setLoading(true);
+            
+            try {
+                let userData = await dbAction('users', 'get', user);
+                
+                if (navigator.onLine) {
+                    try {
+                        const url = `${GAS_WEB_APP_URL}?action=get&type=users&userId=${encodeURIComponent(user)}&t=${Date.now()}`;
+                        const response = await fetch(url);
+                        const result = await response.json();
+                        
+                        if (result.success && result.data && result.data.length > 0) {
+                            const sheetUser = result.data[0];
+                            await dbAction('users', 'put', sheetUser);
+                            userData = sheetUser;
+                            console.log(`✅ User ${user} disinkron dari sheet`);
+                        }
+                    } catch (e) {
+                        console.warn('Gagal sync dari sheet:', e);
+                    }
+                }
+                
+                if (userData && userData.pin === pin) {
+                    currentUser = userData;
+                    localStorage.setItem('current_user', JSON.stringify({ 
+                        username: userData.username, 
+                        pin: userData.pin 
+                    }));
+                    
+                    if (navigator.onLine) {
+                        await forceSyncAfterClear();
+                        await syncAttendanceFromServer(false);
+                    }
+                    
+                    await loadCache();
+                    
+                    showToast("✅ Login berhasil!");
+                    router.navigate('home');
+                    syncFromServer(false);
+                } else {
+                    if (navigator.onLine) {
+                        showToast("Username/PIN salah atau user tidak terdaftar di sheet!", true);
+                    } else {
+                        showToast("Username/PIN salah!", true);
+                    }
+                }
+                
+            } catch (e) {
+                console.error('Login error:', e);
+                showToast("Error login", true);
+            }
+            
+            setLoading(false);
+        };
+
+        // ==================== SYNC USERS FROM SHEET ====================
+        const showSyncUserModal = () => {
+            document.getElementById('sync-user-modal').classList.remove('hidden');
+            document.getElementById('sync-admin-pin').value = '';
+        };
+
+        const closeSyncUserModal = () => {
+            document.getElementById('sync-user-modal').classList.add('hidden');
+        };
+
+        const syncUsersFromSheet = async () => {
+            const adminPin = document.getElementById('sync-admin-pin').value;
+            
+            if (adminPin !== ADMIN_PIN) {
+                showToast("PIN Admin salah!", true);
+                return;
+            }
+            
+            setLoading(true);
+            closeSyncUserModal();
+            
+            try {
+                if (!navigator.onLine) {
+                    showToast("Tidak ada koneksi internet!", true);
+                    setLoading(false);
+                    return;
+                }
+                
+                const url = `${GAS_WEB_APP_URL}?action=get&type=users&t=${Date.now()}`;
+                const response = await fetch(url);
+                const result = await response.json();
+                
+                if (result.success && result.data && result.data.length > 0) {
+                    const existingUsers = await dbAction('users', 'getAll');
+                    for (const user of existingUsers) {
+                        await dbAction('users', 'delete', user.username);
+                    }
+                    
+                    let savedCount = 0;
+                    for (const user of result.data) {
+                        if (user.username && user.name && user.pin) {
+                            await dbAction('users', 'add', {
+                                username: user.username,
+                                name: user.name,
+                                pin: user.pin.toString(),
+                                createdAt: user.createdAt || getWIBForSheet()
+                            });
+                            savedCount++;
+                        }
+                    }
+                    
+                    showToast(`✅ Berhasil sinkron ${savedCount} user!`);
+                    
+                    if (currentPage === 'login') {
+                        router.navigate('login');
+                    }
+                } else {
+                    showToast("Tidak ada data user di sheet", true);
+                }
+                
+            } catch (error) {
+                console.error("Error syncing users:", error);
+                showToast("Gagal sinkron data user", true);
+            }
+            
+            setLoading(false);
+        };
+
+        // ==================== RENDER HISTORY ====================
+        const renderHistory = async () => {
+            const list = document.getElementById('history-list');
+            if (!list) return;
+
+            const todayWIB = getTodayWIB();
+            const today = new Date();
+            let filtered = [...cachedTransactions];
+            
+            if (currentFilter === 'daily') {
+                filtered = filtered.filter(t => extractDateFromTime(t.time) === todayWIB);
+            } 
+            else if (currentFilter === 'monthly') {
+                const currentYear = today.getFullYear();
+                const currentMonth = today.getMonth() + 1;
+                const monthStr = String(currentMonth).padStart(2, '0');
+                filtered = filtered.filter(t => {
+                    const tDate = extractDateFromTime(t.time);
+                    if (!tDate) return false;
+                    const [tYear, tMonth] = tDate.split('-');
+                    return parseInt(tYear) === currentYear && tMonth === monthStr;
+                });
+            } 
+            else if (currentFilter === 'yearly') {
+                filtered = filtered.filter(t => extractDateFromTime(t.time).startsWith(`${today.getFullYear()}-`));
+            } 
+            else if (currentFilter === 'range' && rangeStartDate && rangeEndDate) {
+                filtered = filtered.filter(t => {
+                    const tDate = extractDateFromTime(t.time);
+                    return tDate >= rangeStartDate && tDate <= rangeEndDate;
+                });
+            }
+
+            filtered = filtered.reverse();
+            const totalAmount = filtered.reduce((a, b) => a + b.amount, 0);
+            
+            list.innerHTML = `
+                <div class="mb-3 bg-gradient-to-r from-blue-50 to-indigo-50 p-3 rounded-xl">
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs text-gray-600">Total Transaksi:</span>
+                        <span class="text-lg font-black text-blue-600">Rp ${formatRupiah(totalAmount)}</span>
+                    </div>
+                </div>
+                <div class="flex gap-2 mb-3">
+                    <input type="date" id="history-range-start" class="flex-1 p-2 border rounded-xl text-sm">
+                    <span class="text-xs text-gray-400 self-center">s/d</span>
+                    <input type="date" id="history-range-end" class="flex-1 p-2 border rounded-xl text-sm">
+                </div>
+                <div class="flex gap-2 mb-3">
+                    <button onclick="filterHistoryByDateRange()" class="flex-1 bg-blue-500 text-white py-2 rounded-xl text-xs font-bold">🔍 Cari</button>
+                    <button onclick="resetHistoryFilter()" class="flex-1 bg-gray-300 py-2 rounded-xl text-xs font-bold">🔄 Reset</button>
+                    <button onclick="syncFromServer(true)" class="bg-purple-500 text-white px-4 py-2 rounded-xl text-xs font-bold">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+                <div class="flex gap-2 mb-4">
+                    <button onclick="setHistoryFilter('daily')" class="flex-1 py-1.5 text-[10px] font-bold rounded-lg ${currentFilter === 'daily' ? 'bg-blue-600 text-white' : 'bg-gray-100'}">📅 Hari Ini</button>
+                    <button onclick="setHistoryFilter('monthly')" class="flex-1 py-1.5 text-[10px] font-bold rounded-lg ${currentFilter === 'monthly' ? 'bg-blue-600 text-white' : 'bg-gray-100'}">📆 Bulan Ini</button>
+                    <button onclick="setHistoryFilter('yearly')" class="flex-1 py-1.5 text-[10px] font-bold rounded-lg ${currentFilter === 'yearly' ? 'bg-blue-600 text-white' : 'bg-gray-100'}">📅 Tahun Ini</button>
+                </div>
+                <div class="space-y-3">
+                    ${filtered.map(t => `
+                        <div class="bg-white p-4 rounded-2xl border flex justify-between items-center shadow-sm">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <p class="font-black text-blue-600">Rp ${formatRupiah(t.amount)}</p>
+                                    <span class="text-[8px] bg-blue-50 text-blue-500 px-1.5 py-0.5 rounded">POS</span>
+                                </div>
+                                <p class="text-xs font-bold truncate">${t.note}</p>
+                                <p class="text-[9px] text-gray-400">${formatWIBTime(t.time)}</p>
+                            </div>
+                            <button onclick="deleteTransaction(${t.id}, ${t.serverId ? `'${t.serverId}'` : 'null'})" class="h-9 w-9 rounded-xl bg-red-50 text-red-500 flex items-center justify-center active:bg-red-500 active:text-white transition-all">
+                                <i class="fas fa-trash-alt text-sm"></i>
+                            </button>
+                        </div>
+                    `).join('') || '<div class="text-center py-10 text-gray-400">Tidak ada transaksi</div>'}
+                </div>
+            `;
+        };
+
+        // ==================== RENDER REPORT ====================
+        const renderReport = async () => {
+            const reportView = document.getElementById('report-view');
+            if (!reportView) return;
+
+            const todayWIB = getTodayWIB();
+            const today = new Date();
+            const currentYear = today.getFullYear();
+            const currentMonth = today.getMonth() + 1;
+            const monthStr = String(currentMonth).padStart(2, '0');
+            
+            let filteredTrx = [...cachedTransactions];
+            let filteredAbsen = [...cachedAttendance];
+            let title = "";
+            let totalDays = 0;
+            let workedDays = 0;
+
+            if (currentFilter === 'daily') {
+                title = "Hari Ini (" + todayWIB + ")";
+                filteredTrx = filteredTrx.filter(t => extractDateFromTime(t.time) === todayWIB);
+                filteredAbsen = filteredAbsen.filter(a => extractDateFromTime(a.time) === todayWIB);
+                totalDays = 1;
+                workedDays = filteredAbsen.length;
+            } 
+            else if (currentFilter === 'monthly') {
+                title = `${getNamaBulan(currentMonth)} ${currentYear}`;
+                filteredTrx = filteredTrx.filter(t => {
+                    const tDate = extractDateFromTime(t.time);
+                    if (!tDate) return false;
+                    const [tYear, tMonth] = tDate.split('-');
+                    return parseInt(tYear) === currentYear && tMonth === monthStr;
+                });
+                filteredAbsen = filteredAbsen.filter(a => {
+                    const aDate = extractDateFromTime(a.time);
+                    if (!aDate) return false;
+                    const [aYear, aMonth] = aDate.split('-');
+                    return parseInt(aYear) === currentYear && aMonth === monthStr;
+                });
+                totalDays = getDaysUntilToday(currentYear, currentMonth);
+                const hadirDates = new Set();
+                filteredAbsen.forEach(a => hadirDates.add(extractDateFromTime(a.time)));
+                workedDays = hadirDates.size;
+            } 
+            else if (currentFilter === 'yearly') {
+                title = `Tahun ${currentYear}`;
+                filteredTrx = filteredTrx.filter(t => extractDateFromTime(t.time).startsWith(`${currentYear}-`));
+                filteredAbsen = filteredAbsen.filter(a => extractDateFromTime(a.time).startsWith(`${currentYear}-`));
+                totalDays = 0;
+                for (let m = 1; m <= currentMonth; m++) totalDays += getDaysUntilToday(currentYear, m);
+                const hadirDates = new Set();
+                filteredAbsen.forEach(a => hadirDates.add(extractDateFromTime(a.time)));
+                workedDays = hadirDates.size;
+            }
+
+            const missedDays = totalDays - workedDays;
+            const totalOmzet = filteredTrx.reduce((a, b) => a + b.amount, 0);
+            const bonus = calculateBonus(totalOmzet);
+
+            const absenList = filteredAbsen.map(a => {
+                const date = extractDateFromTime(a.time);
+                const time = formatWIBTime(a.time);
+                return `<div class="flex justify-between items-center text-xs py-1 border-b border-gray-100">
+                            <span>✅ ${date}</span>
+                            <span class="text-gray-500">${time.split(' ')[1]}</span>
+                        </div>`;
+            }).join('');
+
+            reportView.innerHTML = `
+                <div class="bg-white border rounded-2xl p-5 shadow-sm">
+                    <p class="text-[10px] text-gray-400">Total Omzet ${title}</p>
+                    <h4 class="text-2xl font-black text-blue-600">Rp ${formatRupiah(totalOmzet)}</h4>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="bg-white border rounded-2xl p-4 shadow-sm text-center">
+                        <i class="fas fa-calendar-check text-green-500 text-xl mb-1"></i>
+                        <p class="text-[10px] text-gray-400">Hadir</p>
+                        <p class="text-2xl font-black text-green-600">${workedDays}</p>
+                        <p class="text-[9px] text-gray-400">dari ${totalDays} hari</p>
+                    </div>
+                    <div class="bg-white border rounded-2xl p-4 shadow-sm text-center">
+                        <i class="fas fa-calendar-times text-red-500 text-xl mb-1"></i>
+                        <p class="text-[10px] text-gray-400">Tidak Hadir</p>
+                        <p class="text-2xl font-black text-red-500">${missedDays}</p>
+                        <p class="text-[9px] text-gray-400">hari</p>
+                    </div>
+                </div>
+                
+                <div class="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-2xl p-4">
+                    <div class="flex items-center gap-2 mb-2">
+                        <i class="fas fa-gift text-yellow-600"></i>
+                        <p class="text-xs font-bold text-yellow-700">Bonus Periode Ini</p>
+                    </div>
+                    <p class="text-xl font-black text-orange-600">Rp ${formatRupiah(bonus)}</p>
+                    <p class="text-[9px] text-gray-500">*Rp 150.000 per Rp 10.000.000 omzet</p>
+                </div>
+                
+                <div class="bg-white border rounded-2xl p-4 shadow-sm">
+                    <div class="flex items-center gap-2 mb-3">
+                        <i class="fas fa-clipboard-list text-blue-500"></i>
+                        <p class="text-xs font-bold text-gray-700">📋 Daftar Hadir</p>
+                    </div>
+                    <div class="max-h-40 overflow-y-auto">
+                        ${absenList || '<p class="text-center text-[10px] text-gray-400 py-2">Belum ada absen</p>'}
+                    </div>
+                </div>
+                
+                <button onclick="sendReportToAdmin()" class="w-full bg-green-500 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2">
+                    <i class="fab fa-whatsapp"></i> KIRIM LAPORAN KE ADMIN
+                </button>
+            `;
+        };
+
+        // ==================== SEND REPORT WA ====================
+        const sendReportToAdmin = async () => {
+            setLoading(true);
+            
+            try {
+                const today = new Date();
+                const currentYear = today.getFullYear();
+                const currentMonth = today.getMonth() + 1;
+                const monthStr = String(currentMonth).padStart(2, '0');
+                const todayWIB = getTodayWIB();
+                
+                let filteredTrx = [...cachedTransactions];
+                let filteredAbsen = [...cachedAttendance];
+                let periodText = "";
+                let totalDays = 0;
+                let totalOmzet = 0;
+                let bonus = 0;
+                let detailTransaksi = "";
+
+                if (currentFilter === 'daily') {
+                    periodText = "📅 HARIAN (" + todayWIB + ")";
+                    filteredTrx = filteredTrx.filter(t => extractDateFromTime(t.time) === todayWIB);
+                    filteredAbsen = filteredAbsen.filter(a => extractDateFromTime(a.time) === todayWIB);
+                    totalDays = 1;
+                    totalOmzet = filteredTrx.reduce((a,b) => a + b.amount, 0);
+                    bonus = calculateBonus(totalOmzet);
+                } 
+                else if (currentFilter === 'monthly') {
+                    periodText = `📆 BULANAN (${getNamaBulan(currentMonth)} ${currentYear})`;
+                    filteredTrx = filteredTrx.filter(t => {
+                        const tDate = extractDateFromTime(t.time);
+                        if (!tDate) return false;
+                        const [tYear, tMonth] = tDate.split('-');
+                        return parseInt(tYear) === currentYear && tMonth === monthStr;
+                    });
+                    filteredAbsen = filteredAbsen.filter(a => {
+                        const aDate = extractDateFromTime(a.time);
+                        if (!aDate) return false;
+                        const [aYear, aMonth] = aDate.split('-');
+                        return parseInt(aYear) === currentYear && aMonth === monthStr;
+                    });
+                    totalDays = getDaysUntilToday(currentYear, currentMonth);
+                    totalOmzet = filteredTrx.reduce((a,b) => a + b.amount, 0);
+                    bonus = calculateBonus(totalOmzet);
+                } 
+                else if (currentFilter === 'yearly') {
+                    periodText = `📅 TAHUNAN (${currentYear})`;
+                    filteredTrx = filteredTrx.filter(t => extractDateFromTime(t.time).startsWith(`${currentYear}-`));
+                    filteredAbsen = filteredAbsen.filter(a => extractDateFromTime(a.time).startsWith(`${currentYear}-`));
+                    totalDays = 0;
+                    for (let m = 1; m <= currentMonth; m++) totalDays += getDaysUntilToday(currentYear, m);
+                    totalOmzet = filteredTrx.reduce((a,b) => a + b.amount, 0);
+                    bonus = calculateBonus(totalOmzet);
+                } 
+                else if (currentFilter === 'range' && rangeStartDate && rangeEndDate) {
+                    periodText = `📅 RANGE (${rangeStartDate} s/d ${rangeEndDate})`;
+                    filteredTrx = filteredTrx.filter(t => {
+                        const tDate = extractDateFromTime(t.time);
+                        return tDate >= rangeStartDate && tDate <= rangeEndDate;
+                    });
+                    filteredAbsen = filteredAbsen.filter(a => {
+                        const aDate = extractDateFromTime(a.time);
+                        return aDate >= rangeStartDate && aDate <= rangeEndDate;
+                    });
+                    const start = new Date(rangeStartDate);
+                    const end = new Date(rangeEndDate);
+                    const diffTime = Math.abs(end - start);
+                    totalDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                    totalOmzet = filteredTrx.reduce((a,b) => a + b.amount, 0);
+                    bonus = calculateBonus(totalOmzet);
+                }
+
+                const hadirDates = new Set();
+                filteredAbsen.forEach(a => hadirDates.add(extractDateFromTime(a.time)));
+                const totalHadir = hadirDates.size;
+                const totalTidakHadir = totalDays - totalHadir;
+
+                if (filteredTrx.length > 0) {
+                    detailTransaksi = filteredTrx.slice(0, 10).map((t, i) => {
+                        return `${i+1}. [${extractDateFromTime(t.time)}] ${t.note}\n   💵 Rp ${t.amount.toLocaleString()}`;
+                    }).join('\n');
+                    if (filteredTrx.length > 10) detailTransaksi += `\n... dan ${filteredTrx.length - 10} transaksi lainnya`;
+                } else {
+                    detailTransaksi = "(Tidak ada transaksi)";
+                }
+
+                let msg = `📊 *LAPORAN STAFF ${periodText}* 📊\n`;
+                msg += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+                msg += `👤 *Nama:* ${currentUser.name}\n`;
+                msg += `🆔 *ID Staff:* ${currentUser.username}\n`;
+                msg += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+                
+                msg += `📈 *RINGKASAN KINERJA:*\n`;
+                msg += `┌───────────────────────────\n`;
+                msg += `│ 📅 Total Hari Kerja : ${totalDays} hari\n`;
+                msg += `│ ✅ Hadir           : ${totalHadir} hari\n`;
+                msg += `│ ❌ Tidak Hadir     : ${totalTidakHadir} hari\n`;
+                msg += `│ 💰 Total Omzet     : Rp ${totalOmzet.toLocaleString()}\n`;
+                msg += `└───────────────────────────\n\n`;
+                
+                msg += `🎁 *BONUS YANG DIDAPAT:*\n`;
+                msg += `┌───────────────────────────\n`;
+                msg += `│ 🏆 Bonus : *Rp ${bonus.toLocaleString()}*\n`;
+                msg += `│ 📌 Ket   : Rp 150.000 per Rp 10.000.000 omzet\n`;
+                msg += `└───────────────────────────\n\n`;
+                
+                msg += `📝 *DETAIL TRANSAKSI (10 terakhir):*\n`;
+                msg += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+                msg += `${detailTransaksi}\n`;
+                msg += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+                
+                msg += `📊 *RINGKASAN ABSENSI:*\n`;
+                msg += `${filteredAbsen.map(a => `✅ ${formatWIBTime(a.time)}`).join('\n') || '❌ Belum ada absen'}\n`;
+                msg += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+                msg += `📱 *Dikirim melalui App*\n`;
+                msg += `🕐 ${getWIBForSheet()}\n`;
+                msg += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+                
+                sendWA(msg);
+                showToast("✅ Laporan terkirim ke Admin!");
+                
+            } catch (e) {
+                console.error("Error sending report:", e);
+                showToast("❌ Gagal mengirim laporan", true);
+            }
+            
+            setLoading(false);
+        };
+
+        // ==================== FILTER FUNCTIONS ====================
+        const setHistoryFilter = (filter) => { 
+            currentFilter = filter; 
+            renderHistory(); 
+        };
+        
+        const filterHistoryByDateRange = () => {
+            const start = document.getElementById('history-range-start')?.value;
+            const end = document.getElementById('history-range-end')?.value;
+            if (start && end) {
+                rangeStartDate = start; 
+                rangeEndDate = end; 
+                currentFilter = 'range'; 
+                renderHistory();
+            } else showToast("Pilih tanggal!", true);
+        };
+        
+        const resetHistoryFilter = () => { 
+            rangeStartDate = null; 
+            rangeEndDate = null; 
+            currentFilter = 'daily'; 
+            renderHistory(); 
+        };
+        
+        const setReportFilter = (filter) => {
+            currentFilter = filter;
+            
+            const dailyBtn = document.getElementById('f-daily');
+            const monthlyBtn = document.getElementById('f-monthly');
+            const yearlyBtn = document.getElementById('f-yearly');
+            
+            if (dailyBtn) {
+                if (filter === 'daily') {
+                    dailyBtn.className = 'flex-1 py-2 text-xs font-bold rounded-lg bg-blue-600 text-white shadow-sm';
+                } else {
+                    dailyBtn.className = 'flex-1 py-2 text-xs font-bold rounded-lg bg-gray-100 text-gray-500';
+                }
+            }
+            if (monthlyBtn) {
+                if (filter === 'monthly') {
+                    monthlyBtn.className = 'flex-1 py-2 text-xs font-bold rounded-lg bg-blue-600 text-white shadow-sm';
+                } else {
+                    monthlyBtn.className = 'flex-1 py-2 text-xs font-bold rounded-lg bg-gray-100 text-gray-500';
+                }
+            }
+            if (yearlyBtn) {
+                if (filter === 'yearly') {
+                    yearlyBtn.className = 'flex-1 py-2 text-xs font-bold rounded-lg bg-blue-600 text-white shadow-sm';
+                } else {
+                    yearlyBtn.className = 'flex-1 py-2 text-xs font-bold rounded-lg bg-gray-100 text-gray-500';
+                }
+            }
+            
+            renderReport();
+        };
+
+        // ==================== MODALS ====================
+        const showAbsenModal = (data) => { pendingClockInData = data; document.getElementById('absen-modal').classList.remove('hidden'); };
+        const closeAbsenModalAndSkipWA = () => { document.getElementById('absen-modal').classList.add('hidden'); pendingClockInData = null; router.navigate('home'); };
+        const confirmSendWA = () => {
+            if (pendingClockInData) sendWA(`ABSENSI STAFF\nNama: ${pendingClockInData.name}\nJam: ${pendingClockInData.time}\nLokasi: TERVERIFIKASI`);
+            closeAbsenModalAndSkipWA();
+        };
+        const showResetModal = () => { document.getElementById('reset-modal').classList.remove('hidden'); document.getElementById('reset-password').value = ''; };
+        const closeResetModal = () => { document.getElementById('reset-modal').classList.add('hidden'); };
+        const confirmReset = () => {
+            if (document.getElementById('reset-password').value === RESET_PASSWORD) {
+                localStorage.clear(); sessionStorage.clear(); indexedDB.deleteDatabase("AttendancePOSDB");
+                showToast("Reset berhasil!"); setTimeout(() => location.reload(), 1500);
+            } else { showToast("Password salah!", true); closeResetModal(); }
+        };
+        const showImportModal = () => { document.getElementById('import-modal').classList.remove('hidden'); document.getElementById('import-data').value = ''; };
+        const closeImportModal = () => { document.getElementById('import-modal').classList.add('hidden'); };
+        const processImport = async () => {
+            const jsonStr = document.getElementById('import-data').value;
+            if (!jsonStr) return showToast("Masukkan kode backup!", true);
+            setLoading(true);
+            try {
+                const backup = JSON.parse(jsonStr);
+                await dbAction('users', 'clear'); await dbAction('attendance', 'clear'); await dbAction('transactions', 'clear');
+                if (backup.data.users) for (const u of backup.data.users) await dbAction('users', 'add', u);
+                if (backup.data.attendance) for (const a of backup.data.attendance) await dbAction('attendance', 'add', a);
+                if (backup.data.transactions) for (const t of backup.data.transactions) await dbAction('transactions', 'add', t);
+                showToast("✅ Import berhasil!"); closeImportModal(); setTimeout(() => location.reload(), 1500);
+            } catch (e) { showToast("Format tidak valid!", true); }
+            setLoading(false);
+        };
+        const backupData = async () => {
+            setLoading(true);
+            try {
+                const users = await dbAction('users', 'getAll');
+                const attendance = await dbAction('attendance', 'getAll');
+                const transactions = await dbAction('transactions', 'getAll');
+                const backupObj = { version: "7.0", timestamp: getWIBForSheet(), data: { users, attendance, transactions } };
+                const ta = document.createElement("textarea");
+                ta.value = JSON.stringify(backupObj);
+                document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+                showToast("✅ Data disalin ke Clipboard!");
+            } catch (e) { showToast("Gagal backup", true); }
+            setLoading(false);
+        };
+        const editProfile = async () => {
+            const n = prompt("Nama baru:", currentUser.name);
+            const p = prompt("PIN baru (angka):", currentUser.pin);
+            if (n && p) {
+                currentUser.name = n; currentUser.pin = p;
+                await dbAction('users', 'put', currentUser);
+                syncToServer('profile_update', currentUser);
+                showToast("✅ Profil diupdate");
+                router.navigate('settings');
+            }
+        };
+
+        // ==================== REGISTER ====================
+        const handleRegister = async () => {
+            const name = document.getElementById('reg-name')?.value;
+            const user = document.getElementById('reg-user')?.value;
+            const pin = document.getElementById('reg-pin')?.value;
+            if (!name || !user || !pin) return showToast("Lengkapi data!", true);
+            setLoading(true);
+            try {
+                const existing = await dbAction('users', 'get', user);
+                if (existing) showToast("Username sudah ada!", true);
+                else {
+                    const userData = { name, username: user, pin, createdAt: getWIBForSheet() };
+                    await dbAction('users', 'add', userData);
+                    syncToServer('register', userData);
+                    showToast("✅ Pendaftaran berhasil!");
+                    router.navigate('login');
+                }
+            } catch (e) { showToast("Error pendaftaran", true); }
+            setLoading(false);
+        };
+
+        const handleLogout = () => {
+            if (confirm("Keluar dari aplikasi?")) {
+                localStorage.removeItem('current_user');
+                currentUser = null;
+                cachedTransactions = [];
+                cachedAttendance = [];
+                router.navigate('login');
+            }
+        };
+
+        // ==================== CHECK EXISTING SESSION ====================
+        const checkExistingSession = async () => {
+            const savedUser = localStorage.getItem('current_user');
+            if (savedUser) {
+                try {
+                    const userData = JSON.parse(savedUser);
+                    const verify = await dbAction('users', 'get', userData.username);
+                    if (verify && verify.pin === userData.pin) {
+                        currentUser = verify;
+                        await loadCache();
+                        
+                        if (navigator.onLine) {
+                            await syncAttendanceFromServer(false);
+                            await loadCache();
+                        }
+                        
+                        return true;
+                    }
+                } catch(e) {
+                    console.error("Session check error:", e);
+                }
+            }
+            return false;
+        };
+
+        // ==================== ROUTER ====================
+        const router = {
+            navigate: async (page) => {
+                const content = document.getElementById('page-content');
+                const nav = document.getElementById('bottom-nav');
+                currentPage = page;
+
+                if (page === 'login' || page === 'register') nav.classList.add('hidden');
+                else {
+                    if (!currentUser) return router.navigate('login');
+                    nav.classList.remove('hidden');
+                }
+
+                if (page === 'login') {
+                    content.innerHTML = `
+                        <div class="p-8 flex flex-col items-center justify-center min-h-screen">
+                            <div class="w-20 h-20 bg-blue-600 rounded-2xl flex items-center justify-center mb-6 shadow-xl">
+                                <i class="fas fa-store text-white text-3xl"></i>
+                            </div>
+                            <h2 class="text-2xl font-bold mb-8 text-blue-900">Rocky Hijab</h2>
+                            <div class="w-full space-y-4">
+                                <input id="login-user" type="text" placeholder="Username" class="w-full p-4 bg-gray-50 rounded-xl border focus:ring-2 focus:ring-blue-500">
+                                <input id="login-pin" type="password" inputmode="numeric" pattern="[0-9]*" placeholder="PIN (Angka)" class="w-full p-4 bg-gray-50 rounded-xl border focus:ring-2 focus:ring-blue-500">
+                                <button onclick="handleLoginWithSheetSync()" class="w-full bg-blue-600 text-white p-4 rounded-xl font-bold">Login</button>
+                            </div>
+                            <div class="mt-4 w-full flex flex-col gap-2">
+                                <div class="flex gap-2">
+                                    <button onclick="router.navigate('register')" class="flex-1 text-sm text-blue-600 py-2 border border-blue-200 rounded-xl">Daftar Akun</button>
+                                    <button onclick="showImportModal()" class="flex-1 text-sm text-green-600 py-2 border border-green-200 rounded-xl">📂 Import</button>
+                                </div>
+                                <button onclick="showImportUserModal()" class="w-full text-sm text-orange-600 py-2 border border-orange-200 rounded-xl flex items-center justify-center gap-2">
+                                    <i class="fas fa-user-plus"></i> Import User Manual
+                                </button>
+                                <button onclick="showSyncUserModal()" class="w-full text-sm text-purple-600 py-2 border border-purple-200 rounded-xl flex items-center justify-center gap-2">
+                                    <i class="fas fa-cloud-download-alt"></i> Sinkron User dari Sheet
+                                </button>
+                            </div>
+                            <button onclick="showResetModal()" class="mt-10 text-[10px] text-red-500">⚠️ RESET PERANGKAT</button>
+                        </div>
+                    `;
+                } else if (page === 'register') {
+                    content.innerHTML = `
+                        <div class="p-8 flex flex-col items-center justify-center min-h-screen">
+                            <h2 class="text-2xl font-bold mb-8 text-blue-900">Daftar Akun</h2>
+                            <div class="w-full space-y-4">
+                                <input id="reg-name" type="text" placeholder="Nama Lengkap" class="w-full p-4 bg-gray-50 rounded-xl border">
+                                <input id="reg-user" type="text" placeholder="Username" class="w-full p-4 bg-gray-50 rounded-xl border">
+                                <input id="reg-pin" type="password" inputmode="numeric" pattern="[0-9]*" placeholder="PIN (Angka)" class="w-full p-4 bg-gray-50 rounded-xl border">
+                                <button onclick="handleRegister()" class="w-full bg-green-600 text-white p-4 rounded-xl font-bold">Daftar</button>
+                            </div>
+                            <button onclick="router.navigate('login')" class="mt-4 text-sm text-gray-500">Kembali ke Login</button>
+                        </div>
+                    `;
+                } else if (page === 'home') {
+                    content.innerHTML = `
+                        <div class="p-5">
+                            <div class="mb-6 flex justify-between items-start">
+                                <div>
+                                    <p class="text-gray-400 text-xs">Selamat Bekerja,</p>
+                                    <h2 class="text-xl font-bold text-blue-900">${currentUser.name}</h2>
+                                </div>
+                                <div class="bg-green-100 text-green-600 px-3 py-1 rounded-full text-[10px] font-bold">ONLINE</div>
+                            </div>
+                            <div class="bg-white border rounded-2xl p-5 shadow-sm mb-5">
+                                <div class="flex items-center gap-3 mb-4">
+                                    <div class="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center">
+                                        <i class="fas fa-map-marker-alt text-blue-600"></i>
+                                    </div>
+                                    <div>
+                                        <p class="text-[10px] text-gray-400 uppercase">Status Lokasi</p>
+                                        <p id="loc-info" class="text-sm font-medium">Mencari GPS...</p>
+                                    </div>
+                                </div>
+                                <div id="home-status"></div>
+                            </div>
+                            <div class="bg-gradient-to-r from-blue-700 to-indigo-800 p-5 rounded-2xl text-white">
+                                <p class="text-[10px] opacity-70">🏆 Pencapaian Bulan Ini</p>
+                                <h3 id="total-omzet" class="text-2xl font-black">Rp 0</h3>
+                                <p id="bonus-text" class="text-xs mt-2 opacity-90"></p>
+                            </div>
+                        </div>
+                    `;
+                    updateLocation();
+                    await updateBonusUI();
+                    await updateHomeStatus();
+                } else if (page === 'pos') {
+                    content.innerHTML = `
+                        <div class="p-5">
+                            <h2 class="text-xl font-bold text-blue-900 mb-5">💰 Transaksi Baru</h2>
+                            <div id="pos-status"></div>
+                            <div class="space-y-4">
+                                <div class="bg-white border rounded-xl p-4">
+                                    <label class="text-[10px] text-gray-400 uppercase">📝 Keterangan / Item</label>
+                                    <input id="pos-note" type="text" placeholder="Contoh: Pashmina, Hijab, dll" class="w-full mt-1 p-2 outline-none text-lg">
+                                </div>
+                                <div class="bg-white border rounded-xl p-4">
+                                    <label class="text-[10px] text-gray-400 uppercase">💰 Nominal (Rp)</label>
+                                    <input id="pos-amount" type="text" inputmode="numeric" placeholder="0" class="w-full mt-1 p-2 outline-none text-2xl font-bold text-blue-600 text-right">
+                                    <p class="text-[9px] text-gray-400 mt-1">*Keyboard numerik akan muncul otomatis saat klik input</p>
+                                </div>
+                                <button id="btn-transaksi" onclick="handleTransaction()" class="w-full bg-blue-600 text-white p-4 rounded-xl font-bold shadow-lg hover:bg-blue-700 transition-all">💾 SIMPAN TRANSAKSI</button>
+                            </div>
+                        </div>
+                    `;
+                    await updatePosStatus();
+                    setTimeout(() => {
+                        const amountInput = document.getElementById('pos-amount');
+                        if (amountInput) {
+                            amountInput.addEventListener('input', function(e) {
+                                let val = this.value.replace(/\./g, '');
+                                if (val && !isNaN(val) && val.length > 0) {
+                                    this.value = formatRupiah(parseInt(val));
+                                    this.setAttribute('data-numeric', parseInt(val));
+                                } else {
+                                    this.value = '';
+                                    this.setAttribute('data-numeric', '0');
+                                }
+                            });
+                            amountInput.addEventListener('focus', function() {
+                                if (this.value === '' || this.value === 'Rp 0') {
+                                    this.value = '';
+                                }
+                            });
+                        }
+                    }, 100);
+                } else if (page === 'report') {
+                    content.innerHTML = `
+                        <div class="p-5">
+                            <div class="flex justify-between items-center mb-4">
+                                <h2 class="text-xl font-bold text-blue-900">📊 Laporan</h2>
+                                <button onclick="syncFromServer(true)" class="bg-purple-500 text-white px-3 py-1 rounded-lg text-xs">🔄 Sync</button>
+                            </div>
+                            <div class="flex gap-2 p-1 bg-gray-100 rounded-xl mb-4">
+                                <button id="f-daily" onclick="setReportFilter('daily')" class="flex-1 py-2 text-xs font-bold rounded-lg transition-all ${currentFilter === 'daily' ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-100 text-gray-500'}">📅 Harian</button>
+                                <button id="f-monthly" onclick="setReportFilter('monthly')" class="flex-1 py-2 text-xs font-bold rounded-lg transition-all ${currentFilter === 'monthly' ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-100 text-gray-500'}">📆 Bulanan</button>
+                                <button id="f-yearly" onclick="setReportFilter('yearly')" class="flex-1 py-2 text-xs font-bold rounded-lg transition-all ${currentFilter === 'yearly' ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-100 text-gray-500'}">📅 Tahunan</button>
+                            </div>
+                            <div id="report-view" class="space-y-4"></div>
+                        </div>
+                    `;
+                    await renderReport();
+                } else if (page === 'history') {
+                    content.innerHTML = `
+                        <div class="p-5">
+                            <h2 class="text-xl font-bold text-blue-900 mb-4">📜 Riwayat Transaksi</h2>
+                            <div id="history-list" class="space-y-3 pb-20"></div>
+                        </div>
+                    `;
+                    await renderHistory();
+                } else if (page === 'settings') {
+                    content.innerHTML = `
+                        <div class="p-5">
+                            <div class="text-center mb-6">
+                                <div class="w-20 h-20 bg-blue-100 rounded-full mx-auto mb-3 flex items-center justify-center">
+                                    <i class="fas fa-user-circle text-4xl text-blue-500"></i>
+                                </div>
+                                <h3 class="font-bold text-lg">${currentUser.name}</h3>
+                                <p class="text-xs text-gray-400">@${currentUser.username}</p>
+                                <button onclick="editProfile()" class="mt-2 text-xs text-blue-600 border border-blue-200 px-4 py-1 rounded-full">✏️ Edit Profil</button>
+                            </div>
+                            <div class="space-y-3">
+                                <button onclick="syncFromServer(true)" class="w-full p-4 bg-white border rounded-xl flex items-center gap-3 text-sm font-medium active:bg-gray-50 transition-all">
+                                    <i class="fas fa-sync-alt text-purple-500"></i> Sinkronisasi Data
+                                </button>
+                                <button onclick="syncAttendanceFromServer(true)" class="w-full p-4 bg-white border rounded-xl flex items-center gap-3 text-sm font-medium active:bg-gray-50 transition-all">
+                                    <i class="fas fa-calendar-check text-green-500"></i> Sinkron Absensi
+                                </button>
+                                <button onclick="showImportUserModal()" class="w-full p-4 bg-white border rounded-xl flex items-center gap-3 text-sm font-medium active:bg-gray-50 transition-all">
+                                    <i class="fas fa-user-plus text-blue-500"></i> Import User Manual
+                                </button>
+                                <button onclick="backupData()" class="w-full p-4 bg-white border rounded-xl flex items-center gap-3 text-sm font-medium active:bg-gray-50 transition-all">
+                                    <i class="fas fa-cloud-download-alt text-blue-500"></i> Backup Data
+                                </button>
+                                <button onclick="showImportModal()" class="w-full p-4 bg-white border rounded-xl flex items-center gap-3 text-sm font-medium active:bg-gray-50 transition-all">
+                                    <i class="fas fa-cloud-upload-alt text-green-500"></i> Import Data
+                                </button>
+                                <button onclick="handleLogout()" class="w-full p-4 text-red-500 text-sm font-bold border border-red-100 rounded-xl bg-red-50 active:bg-red-100 transition-all">
+                                    🚪 KELUAR APLIKASI
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+        };
+
+        // ==================== INIT ====================
+        window.onload = async () => {
+            await initDB();
+            
+            const fileInput = document.getElementById('import-user-file');
+            if (fileInput) {
+                fileInput.addEventListener('change', handleUserFileUpload);
+            }
+            
+            if (await checkExistingSession()) {
+                router.navigate('home');
+                startAutoSync();
+                setTimeout(() => syncFromServer(false), 2000);
+            } else {
+                router.navigate('login');
+            }
+        };
+    </script>
+</body>
+</html>
