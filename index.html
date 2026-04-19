@@ -9,10 +9,10 @@
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; -webkit-tap-highlight-color: transparent; }
         .modal-backdrop { background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px); }
-        .tab-active { background-color: #2563eb; color: white; }
-        .tab-inactive { background-color: #f3f4f6; color: #6b7280; }
         .toast-show { transform: scale(1); opacity: 1; }
         .toast-hide { transform: scale(0); opacity: 0; }
+        .btn-delete { transition: all 0.2s ease; }
+        .btn-delete:active { transform: scale(0.95); }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen text-gray-800">
@@ -84,7 +84,7 @@
             </div>
         </div>
 
-        <!-- Modal Import User Manual -->
+        <!-- Modal Import User -->
         <div id="import-user-modal" class="fixed inset-0 bg-black/70 z-[200] hidden flex items-center justify-center p-4">
             <div class="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl">
                 <div class="text-center mb-4">
@@ -92,27 +92,20 @@
                     <h3 class="text-lg font-bold text-gray-800">Import User Manual</h3>
                     <p class="text-xs text-gray-500">Pilih metode import user</p>
                 </div>
-                
                 <div class="space-y-3 mb-4">
                     <div class="border rounded-xl p-3">
-                        <label class="text-sm font-medium text-gray-700 block mb-2">
-                            📁 Upload File JSON
-                        </label>
+                        <label class="text-sm font-medium text-gray-700 block mb-2">📁 Upload File JSON</label>
                         <input type="file" id="import-user-file" accept=".json" class="w-full text-sm">
                         <p class="text-[10px] text-gray-400 mt-1">Upload file export dari sheet (.json)</p>
                     </div>
-                    
                     <div class="border rounded-xl p-3">
-                        <label class="text-sm font-medium text-gray-700 block mb-2">
-                            🌐 Download dari Google Sheet
-                        </label>
+                        <label class="text-sm font-medium text-gray-700 block mb-2">🌐 Download dari Google Sheet</label>
                         <input type="text" id="import-username" placeholder="Masukkan Username" class="w-full p-2 border rounded-lg text-sm mb-2">
                         <button onclick="downloadUserFromSheet()" class="w-full bg-blue-500 text-white py-2 rounded-lg text-sm font-medium">
                             <i class="fas fa-download"></i> Download & Import
                         </button>
                     </div>
                 </div>
-                
                 <div class="flex gap-3">
                     <button onclick="closeImportUserModal()" class="flex-1 py-2 bg-gray-200 rounded-xl font-medium">Tutup</button>
                 </div>
@@ -172,7 +165,7 @@
         const ADMIN_PIN = "123456";
         
         // ⚠️ GANTI URL INI DENGAN URL Google Apps Script BARU hasil deploy!
-        const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbz-GdsdKdkHfFmJUHwqu82hyUQIfYRw2qB3K8e9MeJsKRqjCQVxcclQCTVk7OFSF4Fy/exec";
+        const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbz90w5941tfWMqlvaeqQhyOKeMzt9yeXPlLiKx1rSVSBYXATCJZILDD7_MSlKd-yuXy/exec";
 
         let currentUser = null;
         let currentPos = null;
@@ -207,7 +200,7 @@
                 const wibDate = new Date(utcDate.getTime() + (7 * 60 * 60 * 1000));
                 return wibDate.toISOString().replace('T', ' ').slice(0, 19);
             }
-            return timeStr.replace('T', ' ').slice(0, 19);
+            return timeStr;
         }
 
         function extractDateFromTime(timeStr) {
@@ -246,7 +239,7 @@
         // ==================== DATABASE ====================
         const initDB = () => {
             return new Promise((resolve, reject) => {
-                const request = indexedDB.open("AttendancePOSDB", 30);
+                const request = indexedDB.open("AttendancePOSDB", 31);
                 request.onupgradeneeded = (e) => {
                     db = e.target.result;
                     if (!db.objectStoreNames.contains("users")) 
@@ -254,7 +247,7 @@
                     if (!db.objectStoreNames.contains("attendance")) 
                         db.createObjectStore("attendance", { keyPath: "id", autoIncrement: true });
                     if (!db.objectStoreNames.contains("transactions")) 
-                        db.createObjectStore("transactions", { keyPath: "id", autoIncrement: true });
+                        db.createObjectStore("transactions", { keyPath: "id" });
                 };
                 request.onsuccess = (e) => {
                     db = e.target.result;
@@ -299,121 +292,7 @@
             console.log(`📦 Cache: ${cachedTransactions.length} transaksi, ${cachedAttendance.length} absensi`);
         };
 
-        // ==================== FORCE SYNC ====================
-        const forceSyncAfterClear = async () => {
-            if (!currentUser || !navigator.onLine) return false;
-            
-            try {
-                console.log('🔄 Force sync after clear data...');
-                const url = `${GAS_WEB_APP_URL}?action=get&type=attendance&user=${currentUser.username}&t=${Date.now()}`;
-                const response = await fetch(url);
-                const data = await response.json();
-                
-                if (data?.success && data.data && data.data.length > 0) {
-                    const allLocal = await dbAction('attendance', 'getAll');
-                    for (const local of allLocal) {
-                        if (local.user === currentUser.username) {
-                            await dbAction('attendance', 'delete', local.id);
-                        }
-                    }
-                    
-                    for (const att of data.data) {
-                        let attendanceTime = att.time;
-                        if (attendanceTime && (attendanceTime.includes('T') || attendanceTime.includes('Z'))) {
-                            const utcDate = new Date(attendanceTime);
-                            const wibDate = new Date(utcDate.getTime() + (7 * 60 * 60 * 1000));
-                            attendanceTime = wibDate.toISOString().replace('T', ' ').slice(0, 19);
-                        }
-                        
-                        await dbAction('attendance', 'add', {
-                            id: att.id,
-                            user: att.user,
-                            name: att.name,
-                            time: attendanceTime,
-                            loc: att.lat && att.lng ? { lat: att.lat, lng: att.lng } : null
-                        });
-                    }
-                    
-                    await loadCache();
-                    
-                    const todayWIB = getTodayWIB();
-                    const hasAbsenToday = cachedAttendance.some(a => extractDateFromTime(a.time) === todayWIB);
-                    
-                    if (hasAbsenToday) {
-                        console.log('✅ Attendance restored from server');
-                        return true;
-                    }
-                }
-                return false;
-            } catch (e) {
-                console.error('Force sync error:', e);
-                return false;
-            }
-        };
-
         // ==================== SYNC FUNCTIONS ====================
-        const syncAttendanceFromServer = async (showMsg = false) => {
-            if (!currentUser) return;
-            if (showMsg) showToast("🔄 Sinkronisasi absensi...");
-            try {
-                const url = `${GAS_WEB_APP_URL}?action=get&type=attendance&user=${currentUser.username}&t=${Date.now()}`;
-                const response = await fetch(url);
-                const data = await response.json();
-                
-                if (data?.success && data.data && data.data.length > 0) {
-                    const allLocal = await dbAction('attendance', 'getAll');
-                    for (const local of allLocal) {
-                        if (local.user === currentUser.username) {
-                            await dbAction('attendance', 'delete', local.id);
-                        }
-                    }
-                    
-                    for (const att of data.data) {
-                        let attendanceTime = att.time;
-                        if (attendanceTime && (attendanceTime.includes('T') || attendanceTime.includes('Z'))) {
-                            const utcDate = new Date(attendanceTime);
-                            const wibDate = new Date(utcDate.getTime() + (7 * 60 * 60 * 1000));
-                            attendanceTime = wibDate.toISOString().replace('T', ' ').slice(0, 19);
-                        }
-                        
-                        if (!attendanceTime || attendanceTime === '') {
-                            attendanceTime = getWIBForSheet();
-                        }
-                        
-                        await dbAction('attendance', 'add', {
-                            id: att.id,
-                            user: att.user,
-                            name: att.name,
-                            time: attendanceTime,
-                            loc: att.lat && att.lng ? { lat: att.lat, lng: att.lng } : null
-                        });
-                    }
-                    
-                    await loadCache();
-                    
-                    if (currentPage === 'home') await updateHomeStatus();
-                    if (currentPage === 'report') await renderReport();
-                    if (currentPage === 'pos') await updatePosStatus();
-                    
-                    const todayWIB = getTodayWIB();
-                    const todayAttendance = data.data.filter(a => {
-                        const attDate = a.time ? a.time.slice(0, 10) : '';
-                        return attDate === todayWIB;
-                    });
-                    
-                    if (showMsg) showToast(`✅ Sinkron absensi: ${data.data.length} record (hari ini: ${todayAttendance.length})`);
-                    return true;
-                } else {
-                    if (showMsg) showToast("Tidak ada data absensi di server");
-                    return false;
-                }
-            } catch (e) { 
-                console.error("Error sync attendance:", e);
-                if (showMsg) showToast("⚠️ Gagal sync absensi", true);
-                return false;
-            }
-        };
-
         const syncToServer = async (type, data) => {
             if (GAS_WEB_APP_URL.includes("YOUR_DEPLOYMENT_ID")) return;
             if (!navigator.onLine) return;
@@ -438,38 +317,95 @@
                     body: JSON.stringify(payload)
                 });
                 console.log(`✅ Sync ${type} ok`);
-            } catch (e) { console.error(e); }
+            } catch (e) { console.error('Sync error:', e); }
         };
 
         const syncFromServer = async (showMsg = false) => {
             if (!currentUser) return;
             if (showMsg) showToast("🔄 Sinkronisasi...");
+            
             try {
                 const url = `${GAS_WEB_APP_URL}?action=get&type=transactions&user=${currentUser.username}&t=${Date.now()}`;
                 const response = await fetch(url);
                 const data = await response.json();
+                
                 if (data?.success && data.data) {
-                    const allLocal = await dbAction('transactions', 'getAll');
-                    for (const local of allLocal) {
-                        if (local.user === currentUser.username) await dbAction('transactions', 'delete', local.id);
+                    const oldTransactions = await dbAction('transactions', 'getAll');
+                    
+                    for (const local of oldTransactions) {
+                        if (local.user === currentUser.username) {
+                            await dbAction('transactions', 'delete', local.id);
+                        }
                     }
+                    
                     for (const trx of data.data) {
                         if (trx.user === currentUser.username) {
                             await dbAction('transactions', 'add', {
-                                id: trx.id, user: trx.user, name: trx.name,
-                                amount: trx.amount, note: trx.note, time: trx.time, serverId: trx.id
+                                id: trx.id,
+                                user: trx.user, 
+                                name: trx.name,
+                                amount: trx.amount, 
+                                note: trx.note, 
+                                time: trx.time,
+                                serverId: trx.id
                             });
                         }
                     }
+                    console.log(`✅ Synced ${data.data.length} transactions`);
                 }
                 
                 await syncAttendanceFromServer(false);
                 await loadCache();
                 refreshCurrentPage();
-                if (showMsg) showToast("✅ Sinkronisasi selesai");
+                if (showMsg) showToast(`✅ Sinkron selesai: ${cachedTransactions.length} transaksi`);
             } catch (e) { 
                 console.error("Sync error:", e);
                 if (showMsg) showToast("⚠️ Gagal sync", true); 
+            }
+        };
+
+        const syncAttendanceFromServer = async (showMsg = false) => {
+            if (!currentUser) return;
+            if (showMsg) showToast("🔄 Sinkronisasi absensi...");
+            try {
+                const url = `${GAS_WEB_APP_URL}?action=get&type=attendance&user=${currentUser.username}&t=${Date.now()}`;
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data?.success && data.data && data.data.length > 0) {
+                    const allLocal = await dbAction('attendance', 'getAll');
+                    for (const local of allLocal) {
+                        if (local.user === currentUser.username) {
+                            await dbAction('attendance', 'delete', local.id);
+                        }
+                    }
+                    
+                    for (const att of data.data) {
+                        let attendanceTime = att.time;
+                        if (attendanceTime && (attendanceTime.includes('T') || attendanceTime.includes('Z'))) {
+                            const utcDate = new Date(attendanceTime);
+                            const wibDate = new Date(utcDate.getTime() + (7 * 60 * 60 * 1000));
+                            attendanceTime = wibDate.toISOString().replace('T', ' ').slice(0, 19);
+                        }
+                        
+                        await dbAction('attendance', 'add', {
+                            id: att.id,
+                            user: att.user,
+                            name: att.name,
+                            time: attendanceTime,
+                            loc: att.lat && att.lng ? { lat: att.lat, lng: att.lng } : null
+                        });
+                    }
+                    
+                    await loadCache();
+                    if (showMsg) showToast(`✅ Sinkron absensi: ${data.data.length} record`);
+                    return true;
+                }
+                return false;
+            } catch (e) { 
+                console.error("Error sync attendance:", e);
+                if (showMsg) showToast("⚠️ Gagal sync absensi", true);
+                return false;
             }
         };
 
@@ -495,9 +431,7 @@
             const todayWIB = getTodayWIB();
             const lastAttendanceDate = localStorage.getItem('last_attendance_date');
             
-            if (lastAttendanceDate === todayWIB) {
-                return true;
-            }
+            if (lastAttendanceDate === todayWIB) return true;
             
             const hasAbsen = cachedAttendance.some(a => extractDateFromTime(a.time) === todayWIB);
             
@@ -507,7 +441,6 @@
             } else {
                 localStorage.setItem('has_clocked_in', 'false');
             }
-            
             return hasAbsen;
         };
 
@@ -540,19 +473,36 @@
             }
         };
 
-        // ==================== DELETE TRANSACTION - FIXED VERSION ====================
+        // ==================== DELETE TRANSACTION - FIXED ====================
         const deleteTransaction = async (id, serverId = null, transactionUser = null) => {
-            const transaction = cachedTransactions.find(t => t.id === id);
+            // Cari transaksi dari cache
+            let transaction = cachedTransactions.find(t => t.id === id);
+            
+            // Jika tidak ditemukan, coba dari database
+            if (!transaction) {
+                const allTrx = await dbAction('transactions', 'getAll');
+                transaction = allTrx.find(t => t.id === id);
+            }
+            
+            // Coba cari berdasarkan serverId
+            if (!transaction && serverId) {
+                const allTrx = await dbAction('transactions', 'getAll');
+                transaction = allTrx.find(t => t.serverId === serverId || t.id === serverId);
+            }
             
             if (!transaction) {
                 showToast("❌ Transaksi tidak ditemukan!", true);
+                console.error('Transaction not found:', { id, serverId });
                 return;
             }
             
-            // Cek kepemilikan (case-insensitive)
-            const isOwner = transaction.user && transaction.user.toLowerCase() === currentUser.username.toLowerCase();
-            const isAdmin = currentUser.pin === ADMIN_PIN || 
-                            currentUser.username.toLowerCase() === 'admin';
+            // Cek kepemilikan
+            let isOwner = false;
+            if (transaction.user === currentUser.username) isOwner = true;
+            else if (transaction.name && transaction.name.toLowerCase() === currentUser.name.toLowerCase()) isOwner = true;
+            else if (transactionUser === currentUser.username) isOwner = true;
+            
+            const isAdmin = currentUser.pin === ADMIN_PIN || currentUser.username.toLowerCase() === 'admin';
             
             if (!isOwner && !isAdmin) {
                 showToast(`❌ Anda tidak bisa menghapus transaksi milik ${transaction.name || 'orang lain'}!`, true);
@@ -568,98 +518,41 @@
                 return;
             }
             
-            // Konfirmasi untuk nominal besar
+            // Konfirmasi nominal besar
             if (transaction.amount > 1000000) {
-                const confirmBig = confirm(`⚠️ Nominal besar (Rp ${formatRupiah(transaction.amount)})\nYakin ingin menghapus?`);
-                if (!confirmBig) return;
+                if (!confirm(`⚠️ Nominal besar (Rp ${formatRupiah(transaction.amount)})\nYakin ingin menghapus?`)) return;
             }
             
             setLoading(true);
             
             try {
-                if (serverId && serverId !== 'null' && navigator.onLine) {
-                    await syncToServer('delete_transaction', { 
-                        id: id, 
-                        serverId: serverId.toString(),
-                        user: currentUser.username,
-                        pin: currentUser.pin,
-                        transactionOwner: transaction.user
-                    });
+                // Hapus dari server
+                if (navigator.onLine && (serverId || transaction.serverId)) {
+                    const deleteServerId = serverId || transaction.serverId;
+                    if (deleteServerId && deleteServerId !== 'null') {
+                        await syncToServer('delete_transaction', { 
+                            id: transaction.id,
+                            serverId: deleteServerId.toString(),
+                            user: currentUser.username,
+                            pin: currentUser.pin
+                        });
+                    }
                 }
                 
-                await dbAction('transactions', 'delete', id);
-                cachedTransactions = cachedTransactions.filter(t => t.id !== id);
+                // Hapus dari lokal
+                await dbAction('transactions', 'delete', transaction.id);
+                cachedTransactions = cachedTransactions.filter(t => t.id !== transaction.id);
                 
-                if (navigator.onLine) {
-                    await syncFromServer(false);
-                }
+                // Resync
+                if (navigator.onLine) await syncFromServer(false);
                 
                 await renderHistory();
                 await updateBonusUI();
-                
                 showToast(`✅ Transaksi Rp ${formatRupiah(transaction.amount)} berhasil dihapus!`);
                 
             } catch (e) { 
                 console.error('Delete error:', e);
-                showToast(e.message || "Gagal hapus transaksi", true); 
-            }
-            
-            setLoading(false);
-        };
-
-        // ==================== REPAIR DATA FUNCTION ====================
-        const repairUserTransactions = async () => {
-            if (!confirm("🔧 Perbaiki data transaksi user lama?\n\nFungsi ini akan:\n1. Menghubungkan transaksi tanpa user ke user yang sesuai\n2. Memperbaiki data yang corrupted\n\nLanjutkan?")) return;
-            
-            setLoading(true);
-            
-            try {
-                const allTrx = await dbAction('transactions', 'getAll');
-                const allUsers = await dbAction('users', 'getAll');
-                let fixedCount = 0;
-                
-                for (const trx of allTrx) {
-                    let needUpdate = false;
-                    let newUser = trx.user;
-                    
-                    if (!trx.user && trx.name) {
-                        const matchedUser = allUsers.find(u => 
-                            u.name.toLowerCase() === trx.name.toLowerCase() ||
-                            u.username.toLowerCase() === trx.name.toLowerCase()
-                        );
-                        
-                        if (matchedUser) {
-                            newUser = matchedUser.username;
-                            needUpdate = true;
-                        }
-                    }
-                    
-                    if (trx.user && !allUsers.find(u => u.username === trx.user)) {
-                        const matchedUser = allUsers.find(u => 
-                            u.name.toLowerCase() === trx.name.toLowerCase()
-                        );
-                        
-                        if (matchedUser) {
-                            newUser = matchedUser.username;
-                            needUpdate = true;
-                        }
-                    }
-                    
-                    if (needUpdate && newUser) {
-                        trx.user = newUser;
-                        await dbAction('transactions', 'put', trx);
-                        fixedCount++;
-                    }
-                }
-                
-                await loadCache();
-                await renderHistory();
-                
-                showToast(`✅ Berhasil memperbaiki ${fixedCount} transaksi!`);
-                
-            } catch (e) {
-                console.error('Repair error:', e);
-                showToast("Gagal repair data", true);
+                showToast("Gagal hapus transaksi", true);
             }
             
             setLoading(false);
@@ -670,12 +563,7 @@
             const lastAttendanceDate = localStorage.getItem('last_attendance_date');
             const todayWIB = getTodayWIB();
             
-            if (lastAttendanceDate === todayWIB) {
-                showToast("Sudah absen hari ini!");
-                return;
-            }
-            
-            if (await hasClockedInToday()) {
+            if (lastAttendanceDate === todayWIB || await hasClockedInToday()) {
                 showToast("Sudah absen hari ini!");
                 return;
             }
@@ -696,14 +584,12 @@
                 
                 const newId = await dbAction('attendance', 'add', clockData);
                 clockData.id = newId;
-                
                 cachedAttendance.push(clockData);
                 
                 localStorage.setItem('has_clocked_in', 'true');
                 localStorage.setItem('last_attendance_date', getTodayWIB());
                 
                 syncToServer('attendance', clockData).catch(e => console.warn('Sync failed:', e));
-                
                 showAbsenModal(clockData);
                 
                 if (currentPage === 'home') await updateHomeStatus();
@@ -734,11 +620,17 @@
             setLoading(true);
             try {
                 const trx = {
-                    user: currentUser.username, name: currentUser.name,
-                    amount, note: note || "Transaksi", time: getWIBForSheet()
+                    user: currentUser.username, 
+                    name: currentUser.name,
+                    amount, 
+                    note: note || "Transaksi", 
+                    time: getWIBForSheet()
                 };
-                const newId = await dbAction('transactions', 'add', trx);
+                const newId = Date.now() + '_' + Math.random().toString(36).substr(2, 6) + '_' + currentUser.username;
                 trx.id = newId;
+                trx.serverId = newId;
+                
+                await dbAction('transactions', 'add', trx);
                 cachedTransactions.unshift(trx);
                 syncToServer('transaction', trx);
                 showToast("✅ Transaksi Disimpan!");
@@ -753,7 +645,10 @@
                 } else {
                     router.navigate('history');
                 }
-            } catch (e) { showToast("Gagal transaksi", true); }
+            } catch (e) { 
+                console.error('Transaction error:', e);
+                showToast("Gagal transaksi", true); 
+            }
             setLoading(false);
         };
 
@@ -857,6 +752,32 @@
             if (btnTransaksi) btnTransaksi.disabled = !hasAbsen;
         };
 
+        // ==================== FORCE RESYNC ====================
+        const forceResyncAndCleanup = async () => {
+            if (!confirm("⚠️ Fungsi ini akan membersihkan data lokal dan mengambil ulang dari server.\nLanjutkan?")) return;
+            
+            setLoading(true);
+            
+            try {
+                const allTrx = await dbAction('transactions', 'getAll');
+                for (const trx of allTrx) {
+                    if (trx.user === currentUser.username) {
+                        await dbAction('transactions', 'delete', trx.id);
+                    }
+                }
+                
+                await syncFromServer(true);
+                showToast("✅ Data berhasil di-resync!");
+                await renderHistory();
+                
+            } catch (e) {
+                console.error('Force resync error:', e);
+                showToast("❌ Gagal resync data", true);
+            }
+            
+            setLoading(false);
+        };
+
         // ==================== IMPORT USER ====================
         const showImportUserModal = () => {
             document.getElementById('import-user-modal').classList.remove('hidden');
@@ -934,9 +855,7 @@
                 
                 if (exportData && exportData.data && exportData.data.users && exportData.data.users.length > 0) {
                     const user = exportData.data.users[0];
-                    
                     await dbAction('users', 'put', user);
-                    
                     showToast(`✅ User ${user.name} berhasil diimport!`);
                     closeImportUserModal();
                     
@@ -991,22 +910,16 @@
                         pin: userData.pin 
                     }));
                     
-                    if (navigator.onLine) {
-                        await forceSyncAfterClear();
-                        await syncAttendanceFromServer(false);
-                    }
-                    
                     await loadCache();
+                    
+                    if (navigator.onLine) {
+                        await syncFromServer(false);
+                    }
                     
                     showToast("✅ Login berhasil!");
                     router.navigate('home');
-                    syncFromServer(false);
                 } else {
-                    if (navigator.onLine) {
-                        showToast("Username/PIN salah atau user tidak terdaftar di sheet!", true);
-                    } else {
-                        showToast("Username/PIN salah!", true);
-                    }
+                    showToast("Username/PIN salah!", true);
                 }
                 
             } catch (e) {
@@ -1148,33 +1061,22 @@
                 <div class="space-y-3">
                     ${filtered.map(t => {
                         const isOwnTransaction = t.user === currentUser.username;
-                        const isAdmin = currentUser.pin === ADMIN_PIN;
-                        const canDelete = isOwnTransaction || isAdmin;
+                        const canDelete = isOwnTransaction || currentUser.pin === ADMIN_PIN;
                         
                         return `
-                            <div class="bg-white p-4 rounded-2xl border flex justify-between items-center shadow-sm ${!isOwnTransaction ? 'border-yellow-200 bg-yellow-50/30' : ''}">
+                            <div class="bg-white p-4 rounded-2xl border flex justify-between items-center shadow-sm">
                                 <div class="flex-1">
                                     <div class="flex items-center gap-2 mb-1">
                                         <p class="font-black text-blue-600">Rp ${formatRupiah(t.amount)}</p>
-                                        ${!isOwnTransaction ? '<span class="text-[8px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded">🔒 MILIK ORANG LAIN</span>' : ''}
                                         <span class="text-[8px] bg-blue-50 text-blue-500 px-1.5 py-0.5 rounded">POS</span>
                                     </div>
                                     <p class="text-xs font-bold truncate">${t.note}</p>
-                                    <p class="text-[9px] text-gray-400">
-                                        ${formatWIBTime(t.time)} 
-                                        ${!isOwnTransaction ? ` • oleh: ${t.name || t.user}` : ''}
-                                    </p>
+                                    <p class="text-[9px] text-gray-400">${formatWIBTime(t.time)}</p>
                                 </div>
-                                ${canDelete ? `
-                                    <button onclick="deleteTransaction(${t.id}, ${t.serverId ? `'${t.serverId}'` : 'null'}, '${t.user}')" 
-                                            class="h-9 w-9 rounded-xl bg-red-50 text-red-500 flex items-center justify-center active:bg-red-500 active:text-white transition-all">
-                                        <i class="fas fa-trash-alt text-sm"></i>
-                                    </button>
-                                ` : `
-                                    <div class="h-9 w-9 rounded-xl bg-gray-100 text-gray-400 flex items-center justify-center" title="Tidak bisa hapus transaksi orang lain">
-                                        <i class="fas fa-lock text-sm"></i>
-                                    </div>
-                                `}
+                                <button onclick="deleteTransaction('${t.id}', '${t.serverId || ''}', '${t.user}')" 
+                                        class="btn-delete h-9 w-9 rounded-xl bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all">
+                                    <i class="fas fa-trash-alt text-sm"></i>
+                                </button>
                             </div>
                         `;
                     }).join('') || '<div class="text-center py-10 text-gray-400">Tidak ada transaksi</div>'}
@@ -1580,8 +1482,7 @@
                         await loadCache();
                         
                         if (navigator.onLine) {
-                            await syncAttendanceFromServer(false);
-                            await loadCache();
+                            await syncFromServer(false);
                         }
                         
                         return true;
@@ -1737,7 +1638,10 @@
                 } else if (page === 'history') {
                     content.innerHTML = `
                         <div class="p-5">
-                            <h2 class="text-xl font-bold text-blue-900 mb-4">📜 Riwayat Transaksi</h2>
+                            <div class="flex justify-between items-center mb-4">
+                                <h2 class="text-xl font-bold text-blue-900">📜 Riwayat Transaksi</h2>
+                                <button onclick="forceResyncAndCleanup()" class="bg-red-500 text-white px-3 py-1 rounded-lg text-xs">🔄 Force Resync</button>
+                            </div>
                             <div id="history-list" class="space-y-3 pb-20"></div>
                         </div>
                     `;
@@ -1754,8 +1658,8 @@
                                 <button onclick="editProfile()" class="mt-2 text-xs text-blue-600 border border-blue-200 px-4 py-1 rounded-full">✏️ Edit Profil</button>
                             </div>
                             <div class="space-y-3">
-                                <button onclick="repairUserTransactions()" class="w-full p-4 bg-white border rounded-xl flex items-center gap-3 text-sm font-medium active:bg-gray-50 transition-all">
-                                    <i class="fas fa-wrench text-orange-500"></i> 🔧 Perbaiki Data Transaksi
+                                <button onclick="forceResyncAndCleanup()" class="w-full p-4 bg-white border rounded-xl flex items-center gap-3 text-sm font-medium active:bg-gray-50 transition-all">
+                                    <i class="fas fa-sync-alt text-red-500"></i> 🔄 Force Resync & Cleanup
                                 </button>
                                 <button onclick="syncFromServer(true)" class="w-full p-4 bg-white border rounded-xl flex items-center gap-3 text-sm font-medium active:bg-gray-50 transition-all">
                                     <i class="fas fa-sync-alt text-purple-500"></i> Sinkronisasi Data
