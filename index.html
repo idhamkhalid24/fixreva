@@ -11,12 +11,15 @@
         .modal-backdrop { background-color: rgba(0,0,0,0.5); backdrop-filter: blur(4px); }
         .tab-active { background-color: #2563eb; color: white; }
         .tab-inactive { background-color: #f3f4f6; color: #6b7280; }
+        .toast-show { transform: scale(1); opacity: 1; }
+        .toast-hide { transform: scale(0); opacity: 0; }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen text-gray-800">
 
     <div id="app" class="max-w-md mx-auto min-h-screen bg-white shadow-xl relative pb-20 overflow-x-hidden">
         
+        <!-- Loading Overlay -->
         <div id="loading" class="fixed inset-0 bg-black/50 z-[100] hidden flex items-center justify-center">
             <div class="bg-white p-5 rounded-lg flex flex-col items-center shadow-2xl">
                 <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mb-2"></div>
@@ -24,7 +27,8 @@
             </div>
         </div>
 
-        <div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 z-[101] bg-gray-800 text-white px-4 py-2 rounded-full text-sm transform scale-0 transition-transform duration-300 shadow-lg">
+        <!-- Toast Notification -->
+        <div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 z-[101] bg-gray-800 text-white px-4 py-2 rounded-full text-sm transition-all duration-300 shadow-lg toast-hide">
             Pesan Notifikasi
         </div>
 
@@ -136,8 +140,10 @@
             </div>
         </div>
 
+        <!-- Page Content -->
         <div id="page-content"></div>
 
+        <!-- Bottom Navigation -->
         <nav id="bottom-nav" class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white border-t border-gray-200 flex justify-around items-center h-16 z-50 hidden">
             <button onclick="router.navigate('home')" class="flex flex-col items-center text-gray-400 focus:text-blue-600 transition-all">
                 <i class="fas fa-home text-xl"></i><span class="text-[10px] mt-0.5">Beranda</span>
@@ -160,13 +166,13 @@
     <script>
         /** ==================== KONFIGURASI ==================== **/
         const ADMIN_WA = "6281514696906";
-        const OFFICE_LOC = { lat: -6.786168, lng: 106.780918 };
+        const OFFICE_LOC = { lat: -6.767809, lng: 106.801255 };
         const RADIUS_LIMIT = 200;
         const RESET_PASSWORD = "rockyhijab";
         const ADMIN_PIN = "123456";
         
-        // ⚠️ GANTI URL INI DENGAN URL Google Apps Script ANDA setelah deploy!
-        const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwKx05S6bScllNDJ7DHY4wbqes8uMbJt-tpREEeIZzjMCuGIePiNUBzFdZBFPS06Z60/exec";
+        // ⚠️ GANTI URL INI DENGAN URL Google Apps Script BARU hasil deploy!
+        const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwruPxgynIUQV_kpe57S6LwcEFWdcJaDbiY8SEg7z9XuZ5GVrYFZL8PatkDj1SMZ05x/exec";
 
         let currentUser = null;
         let currentPos = null;
@@ -196,7 +202,6 @@
 
         function formatWIBTime(timeStr) {
             if (!timeStr) return '-';
-            // Jika format UTC, konversi
             if (timeStr.includes('T') || timeStr.includes('Z')) {
                 const utcDate = new Date(timeStr);
                 const wibDate = new Date(utcDate.getTime() + (7 * 60 * 60 * 1000));
@@ -207,7 +212,6 @@
 
         function extractDateFromTime(timeStr) {
             if (!timeStr) return '';
-            // Jika format UTC
             if (timeStr.includes('T') || timeStr.includes('Z')) {
                 const utcDate = new Date(timeStr);
                 const wibDate = new Date(utcDate.getTime() + (7 * 60 * 60 * 1000));
@@ -242,7 +246,7 @@
         // ==================== DATABASE ====================
         const initDB = () => {
             return new Promise((resolve, reject) => {
-                const request = indexedDB.open("AttendancePOSDB", 28);
+                const request = indexedDB.open("AttendancePOSDB", 30);
                 request.onupgradeneeded = (e) => {
                     db = e.target.result;
                     if (!db.objectStoreNames.contains("users")) 
@@ -295,7 +299,7 @@
             console.log(`📦 Cache: ${cachedTransactions.length} transaksi, ${cachedAttendance.length} absensi`);
         };
 
-        // ==================== FORCE SYNC AFTER CLEAR DATA ====================
+        // ==================== FORCE SYNC ====================
         const forceSyncAfterClear = async () => {
             if (!currentUser || !navigator.onLine) return false;
             
@@ -347,7 +351,7 @@
             }
         };
 
-        // ==================== SYNC ATTENDANCE ====================
+        // ==================== SYNC FUNCTIONS ====================
         const syncAttendanceFromServer = async (showMsg = false) => {
             if (!currentUser) return;
             if (showMsg) showToast("🔄 Sinkronisasi absensi...");
@@ -355,8 +359,6 @@
                 const url = `${GAS_WEB_APP_URL}?action=get&type=attendance&user=${currentUser.username}&t=${Date.now()}`;
                 const response = await fetch(url);
                 const data = await response.json();
-                
-                console.log('📥 Raw attendance data:', data);
                 
                 if (data?.success && data.data && data.data.length > 0) {
                     const allLocal = await dbAction('attendance', 'getAll');
@@ -368,13 +370,10 @@
                     
                     for (const att of data.data) {
                         let attendanceTime = att.time;
-                        
-                        // Konversi UTC ke WIB jika perlu
                         if (attendanceTime && (attendanceTime.includes('T') || attendanceTime.includes('Z'))) {
                             const utcDate = new Date(attendanceTime);
                             const wibDate = new Date(utcDate.getTime() + (7 * 60 * 60 * 1000));
                             attendanceTime = wibDate.toISOString().replace('T', ' ').slice(0, 19);
-                            console.log(`🔄 Converted time: ${att.time} -> ${attendanceTime}`);
                         }
                         
                         if (!attendanceTime || attendanceTime === '') {
@@ -392,15 +391,9 @@
                     
                     await loadCache();
                     
-                    if (currentPage === 'home') {
-                        await updateHomeStatus();
-                    }
-                    if (currentPage === 'report') {
-                        await renderReport();
-                    }
-                    if (currentPage === 'pos') {
-                        await updatePosStatus();
-                    }
+                    if (currentPage === 'home') await updateHomeStatus();
+                    if (currentPage === 'report') await renderReport();
+                    if (currentPage === 'pos') await updatePosStatus();
                     
                     const todayWIB = getTodayWIB();
                     const todayAttendance = data.data.filter(a => {
@@ -421,20 +414,28 @@
             }
         };
 
-        // ==================== SYNC TO SERVER ====================
         const syncToServer = async (type, data) => {
             if (GAS_WEB_APP_URL.includes("YOUR_DEPLOYMENT_ID")) return;
+            if (!navigator.onLine) return;
+            
             try {
+                const payload = {
+                    type: type,
+                    user: currentUser?.username || 'system',
+                    timestamp: getWIBForSheet(),
+                    payload: data
+                };
+                
+                if (type === 'delete_transaction') {
+                    payload.payload.pin = currentUser?.pin;
+                    payload.payload.requestBy = currentUser?.username;
+                }
+                
                 await fetch(GAS_WEB_APP_URL, {
                     method: 'POST',
                     mode: 'no-cors',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        type: type,
-                        user: currentUser?.username || 'system',
-                        timestamp: getWIBForSheet(),
-                        payload: data
-                    })
+                    body: JSON.stringify(payload)
                 });
                 console.log(`✅ Sync ${type} ok`);
             } catch (e) { console.error(e); }
@@ -539,24 +540,128 @@
             }
         };
 
-        // ==================== DELETE TRANSACTION ====================
-        const deleteTransaction = async (id, serverId = null) => {
-            const pin = prompt("Konfirmasi hapus transaksi. Masukkan PIN Anda:");
+        // ==================== DELETE TRANSACTION - FIXED VERSION ====================
+        const deleteTransaction = async (id, serverId = null, transactionUser = null) => {
+            const transaction = cachedTransactions.find(t => t.id === id);
+            
+            if (!transaction) {
+                showToast("❌ Transaksi tidak ditemukan!", true);
+                return;
+            }
+            
+            // Cek kepemilikan (case-insensitive)
+            const isOwner = transaction.user && transaction.user.toLowerCase() === currentUser.username.toLowerCase();
+            const isAdmin = currentUser.pin === ADMIN_PIN || 
+                            currentUser.username.toLowerCase() === 'admin';
+            
+            if (!isOwner && !isAdmin) {
+                showToast(`❌ Anda tidak bisa menghapus transaksi milik ${transaction.name || 'orang lain'}!`, true);
+                return;
+            }
+            
+            // Verifikasi PIN
+            const pin = prompt(`Konfirmasi hapus transaksi Rp ${formatRupiah(transaction.amount)}\nMasukkan PIN Anda:`);
             if (!pin) return;
-            if (pin !== currentUser.pin) return showToast("PIN Salah!", true);
-
+            
+            if (pin !== currentUser.pin && !isAdmin) {
+                showToast("PIN Salah!", true);
+                return;
+            }
+            
+            // Konfirmasi untuk nominal besar
+            if (transaction.amount > 1000000) {
+                const confirmBig = confirm(`⚠️ Nominal besar (Rp ${formatRupiah(transaction.amount)})\nYakin ingin menghapus?`);
+                if (!confirmBig) return;
+            }
+            
             setLoading(true);
+            
             try {
-                if (serverId && serverId !== 'null') {
-                    await syncToServer('delete_transaction', { id, serverId: serverId.toString() });
+                if (serverId && serverId !== 'null' && navigator.onLine) {
+                    await syncToServer('delete_transaction', { 
+                        id: id, 
+                        serverId: serverId.toString(),
+                        user: currentUser.username,
+                        pin: currentUser.pin,
+                        transactionOwner: transaction.user
+                    });
                 }
+                
                 await dbAction('transactions', 'delete', id);
                 cachedTransactions = cachedTransactions.filter(t => t.id !== id);
-                await syncFromServer(false);
+                
+                if (navigator.onLine) {
+                    await syncFromServer(false);
+                }
+                
                 await renderHistory();
                 await updateBonusUI();
-                showToast("✅ Transaksi dihapus!");
-            } catch (e) { showToast("Gagal hapus", true); }
+                
+                showToast(`✅ Transaksi Rp ${formatRupiah(transaction.amount)} berhasil dihapus!`);
+                
+            } catch (e) { 
+                console.error('Delete error:', e);
+                showToast(e.message || "Gagal hapus transaksi", true); 
+            }
+            
+            setLoading(false);
+        };
+
+        // ==================== REPAIR DATA FUNCTION ====================
+        const repairUserTransactions = async () => {
+            if (!confirm("🔧 Perbaiki data transaksi user lama?\n\nFungsi ini akan:\n1. Menghubungkan transaksi tanpa user ke user yang sesuai\n2. Memperbaiki data yang corrupted\n\nLanjutkan?")) return;
+            
+            setLoading(true);
+            
+            try {
+                const allTrx = await dbAction('transactions', 'getAll');
+                const allUsers = await dbAction('users', 'getAll');
+                let fixedCount = 0;
+                
+                for (const trx of allTrx) {
+                    let needUpdate = false;
+                    let newUser = trx.user;
+                    
+                    if (!trx.user && trx.name) {
+                        const matchedUser = allUsers.find(u => 
+                            u.name.toLowerCase() === trx.name.toLowerCase() ||
+                            u.username.toLowerCase() === trx.name.toLowerCase()
+                        );
+                        
+                        if (matchedUser) {
+                            newUser = matchedUser.username;
+                            needUpdate = true;
+                        }
+                    }
+                    
+                    if (trx.user && !allUsers.find(u => u.username === trx.user)) {
+                        const matchedUser = allUsers.find(u => 
+                            u.name.toLowerCase() === trx.name.toLowerCase()
+                        );
+                        
+                        if (matchedUser) {
+                            newUser = matchedUser.username;
+                            needUpdate = true;
+                        }
+                    }
+                    
+                    if (needUpdate && newUser) {
+                        trx.user = newUser;
+                        await dbAction('transactions', 'put', trx);
+                        fixedCount++;
+                    }
+                }
+                
+                await loadCache();
+                await renderHistory();
+                
+                showToast(`✅ Berhasil memperbaiki ${fixedCount} transaksi!`);
+                
+            } catch (e) {
+                console.error('Repair error:', e);
+                showToast("Gagal repair data", true);
+            }
+            
             setLoading(false);
         };
 
@@ -666,10 +771,14 @@
         const showToast = (msg, isError = false) => {
             const toast = document.getElementById('toast');
             toast.innerText = msg;
-            toast.classList.remove('scale-0');
+            toast.classList.remove('toast-hide');
+            toast.classList.add('toast-show');
             if (isError) toast.classList.add('bg-red-600');
             else toast.classList.remove('bg-red-600');
-            setTimeout(() => toast.classList.add('scale-0'), 3000);
+            setTimeout(() => {
+                toast.classList.remove('toast-show');
+                toast.classList.add('toast-hide');
+            }, 3000);
         };
 
         const setLoading = (state) => {
@@ -748,7 +857,7 @@
             if (btnTransaksi) btnTransaksi.disabled = !hasAbsen;
         };
 
-        // ==================== FITUR IMPORT USER MANUAL ====================
+        // ==================== IMPORT USER ====================
         const showImportUserModal = () => {
             document.getElementById('import-user-modal').classList.remove('hidden');
             document.getElementById('import-username').value = '';
@@ -846,7 +955,7 @@
             setLoading(false);
         };
 
-        // ==================== LOGIN DENGAN SYNC KE SHEET ====================
+        // ==================== LOGIN ====================
         const handleLoginWithSheetSync = async () => {
             const user = document.getElementById('login-user')?.value;
             const pin = document.getElementById('login-pin')?.value;
@@ -908,7 +1017,7 @@
             setLoading(false);
         };
 
-        // ==================== SYNC USERS FROM SHEET ====================
+        // ==================== SYNC USERS ====================
         const showSyncUserModal = () => {
             document.getElementById('sync-user-modal').classList.remove('hidden');
             document.getElementById('sync-admin-pin').value = '';
@@ -1037,21 +1146,38 @@
                     <button onclick="setHistoryFilter('yearly')" class="flex-1 py-1.5 text-[10px] font-bold rounded-lg ${currentFilter === 'yearly' ? 'bg-blue-600 text-white' : 'bg-gray-100'}">📅 Tahun Ini</button>
                 </div>
                 <div class="space-y-3">
-                    ${filtered.map(t => `
-                        <div class="bg-white p-4 rounded-2xl border flex justify-between items-center shadow-sm">
-                            <div class="flex-1">
-                                <div class="flex items-center gap-2 mb-1">
-                                    <p class="font-black text-blue-600">Rp ${formatRupiah(t.amount)}</p>
-                                    <span class="text-[8px] bg-blue-50 text-blue-500 px-1.5 py-0.5 rounded">POS</span>
+                    ${filtered.map(t => {
+                        const isOwnTransaction = t.user === currentUser.username;
+                        const isAdmin = currentUser.pin === ADMIN_PIN;
+                        const canDelete = isOwnTransaction || isAdmin;
+                        
+                        return `
+                            <div class="bg-white p-4 rounded-2xl border flex justify-between items-center shadow-sm ${!isOwnTransaction ? 'border-yellow-200 bg-yellow-50/30' : ''}">
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <p class="font-black text-blue-600">Rp ${formatRupiah(t.amount)}</p>
+                                        ${!isOwnTransaction ? '<span class="text-[8px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded">🔒 MILIK ORANG LAIN</span>' : ''}
+                                        <span class="text-[8px] bg-blue-50 text-blue-500 px-1.5 py-0.5 rounded">POS</span>
+                                    </div>
+                                    <p class="text-xs font-bold truncate">${t.note}</p>
+                                    <p class="text-[9px] text-gray-400">
+                                        ${formatWIBTime(t.time)} 
+                                        ${!isOwnTransaction ? ` • oleh: ${t.name || t.user}` : ''}
+                                    </p>
                                 </div>
-                                <p class="text-xs font-bold truncate">${t.note}</p>
-                                <p class="text-[9px] text-gray-400">${formatWIBTime(t.time)}</p>
+                                ${canDelete ? `
+                                    <button onclick="deleteTransaction(${t.id}, ${t.serverId ? `'${t.serverId}'` : 'null'}, '${t.user}')" 
+                                            class="h-9 w-9 rounded-xl bg-red-50 text-red-500 flex items-center justify-center active:bg-red-500 active:text-white transition-all">
+                                        <i class="fas fa-trash-alt text-sm"></i>
+                                    </button>
+                                ` : `
+                                    <div class="h-9 w-9 rounded-xl bg-gray-100 text-gray-400 flex items-center justify-center" title="Tidak bisa hapus transaksi orang lain">
+                                        <i class="fas fa-lock text-sm"></i>
+                                    </div>
+                                `}
                             </div>
-                            <button onclick="deleteTransaction(${t.id}, ${t.serverId ? `'${t.serverId}'` : 'null'})" class="h-9 w-9 rounded-xl bg-red-50 text-red-500 flex items-center justify-center active:bg-red-500 active:text-white transition-all">
-                                <i class="fas fa-trash-alt text-sm"></i>
-                            </button>
-                        </div>
-                    `).join('') || '<div class="text-center py-10 text-gray-400">Tidak ada transaksi</div>'}
+                        `;
+                    }).join('') || '<div class="text-center py-10 text-gray-400">Tidak ada transaksi</div>'}
                 </div>
             `;
         };
@@ -1628,6 +1754,9 @@
                                 <button onclick="editProfile()" class="mt-2 text-xs text-blue-600 border border-blue-200 px-4 py-1 rounded-full">✏️ Edit Profil</button>
                             </div>
                             <div class="space-y-3">
+                                <button onclick="repairUserTransactions()" class="w-full p-4 bg-white border rounded-xl flex items-center gap-3 text-sm font-medium active:bg-gray-50 transition-all">
+                                    <i class="fas fa-wrench text-orange-500"></i> 🔧 Perbaiki Data Transaksi
+                                </button>
                                 <button onclick="syncFromServer(true)" class="w-full p-4 bg-white border rounded-xl flex items-center gap-3 text-sm font-medium active:bg-gray-50 transition-all">
                                     <i class="fas fa-sync-alt text-purple-500"></i> Sinkronisasi Data
                                 </button>
