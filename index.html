@@ -787,13 +787,12 @@
 
 <script>
     /** ==================== KONFIGURASI ==================== **/
-    // ⚠️ GANTI DENGAN URL DEPLOYMENT GAS ANDA!
-    const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxdHwjMpCCyfBYgYcUnxhBFmD4444loOtJLg2cd66_F-WUkSOhaO-IKoHkKJJ2WTsx5/exec";    
     const ADMIN_WA = "6281514696906";
-    const OFFICE_LOC = { lat: -6.767809, lng: 106.801255 };
+    const OFFICE_LOC = { lat: -6.786168, lng: 106.780918 };
     const RADIUS_LIMIT = 200;
     const RESET_PASSWORD = "rockyhijab";
     const ADMIN_PIN = "123456";
+    const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzoKqlDRyUIeOuOorNASuWGhutiHXn4QXee6H8gAKYbayjJhb9hWjV4C3ujFpj_itEX/exec";
 
     let currentUser = null, currentPos = null, db;
     let currentFilter = 'daily', rangeStartDate = null, rangeEndDate = null;
@@ -813,10 +812,12 @@
         document.querySelectorAll('.theme-toggle').forEach(b => {
             b.innerHTML = next === 'dark' ? '<i class="fas fa-moon"></i>' : '<i class="fas fa-sun"></i>';
         });
+        // Update calendar picker filter
         document.querySelectorAll('input[type="date"].g-input').forEach(el => {
             el.style.colorScheme = next;
         });
     };
+    // Apply saved theme on load
     (function(){ applyTheme(getTheme()); })();
 
     // ── TIME UTILS ──
@@ -1369,6 +1370,7 @@
                 content.innerHTML=`
                 <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 22px;position:relative">
                     
+                    <!-- Theme toggle top right -->
                     <div style="position:absolute;top:22px;right:22px">
                         <button class="theme-toggle" onclick="toggleTheme()">${themeIcon}</button>
                     </div>
@@ -1431,6 +1433,7 @@
             } else if(page==='home'){
                 content.innerHTML=`
                 <div class="page-pad">
+                    <!-- Header -->
                     <div style="padding:50px 0 22px;display:flex;justify-content:space-between;align-items:center" class="page-in">
                         <div>
                             <p style="font-size:11.5px;color:var(--text-ghost);font-weight:500;margin-bottom:2px">Selamat Bekerja,</p>
@@ -1444,12 +1447,14 @@
                         </div>
                     </div>
 
+                    <!-- Location Card -->
                     <div class="card page-in s1" style="padding:16px 18px;margin-bottom:12px">
                         <p class="label-xs">Status Lokasi</p>
                         <div id="loc-info" style="margin-bottom:12px"><span class="loc-chip loc-loading"><i class="fas fa-circle-notch fa-spin" style="font-size:10px"></i> Mencari GPS...</span></div>
                         <div id="home-status"></div>
                     </div>
 
+                    <!-- Omzet Hero -->
                     <div class="stat-hero page-in s2">
                         <p class="stat-label">Pencapaian Bulan Ini</p>
                         <p id="total-omzet" class="stat-value">Rp 0</p>
@@ -1544,6 +1549,7 @@
                         <button class="theme-toggle" onclick="toggleTheme()">${themeIcon}</button>
                     </div>
 
+                    <!-- Profile Card -->
                     <div style="text-align:center;margin-bottom:24px" class="page-in">
                         <div class="avatar-ring">${currentUser.name.charAt(0).toUpperCase()}</div>
                         <p style="font-size:17px;font-weight:700;margin-top:12px;letter-spacing:-0.01em">${currentUser.name}</p>
@@ -1551,7 +1557,10 @@
                         <button onclick="editProfile()" style="margin-top:10px;font-size:12px;color:var(--accent);background:var(--accent-dim);border:1px solid rgba(91,143,255,0.2);border-radius:100px;padding:5px 16px;font-weight:600;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif">Edit Profil</button>
                     </div>
 
+                    <!-- Settings List -->
                     <div style="display:flex;flex-direction:column;gap:7px;padding-bottom:18px" class="page-in s1">
+
+                        <!-- Theme Toggle Row -->
                         <button onclick="toggleTheme()" class="setting-row">
                             <div class="setting-ico" style="background:var(--amber-dim)"><i class="fas fa-circle-half-stroke" style="color:var(--amber)"></i></div>
                             <span class="setting-label">Mode Tampilan</span>
