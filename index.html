@@ -2319,29 +2319,13 @@
       <div class="card" style="padding:14px 16px;margin-top:12px">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px">
           <p class="label-xs" style="margin:0">Backup, Reset & Restore</p>
-          <span class="status-pill status-warn">JSON + Excel</span>
+          <span class="status-pill status-warn">Restore Otomatis</span>
         </div>
         <div style="display:flex;flex-direction:column;gap:9px">
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
             <button onclick="downloadBackup('json')" class="btn btn-primary" style="padding:12px;font-size:12px"><i class="fas fa-download"></i> Backup JSON</button>
             <button onclick="downloadBackup('xlsx')" class="btn btn-glass" style="padding:12px;font-size:12px"><i class="fas fa-file-excel"></i> Backup Excel</button>
             <button onclick="resetAllAppData()" class="btn btn-danger" style="padding:12px;font-size:12px"><i class="fas fa-trash"></i> Reset Data</button>
-          </div>
-          <div class="card" style="padding:12px;background:var(--surface);border-style:dashed">
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-              <div style="width:36px;height:36px;border-radius:11px;background:var(--accent-dim);display:flex;align-items:center;justify-content:center;color:var(--accent);flex-shrink:0"><i class="fas fa-code"></i></div>
-              <div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:800">Restore JSON</div><div style="font-size:11px;color:var(--text-soft);margin-top:2px">Pilih file backup .json lalu klik restore.</div></div>
-            </div>
-            <input id="restore-file" type="file" class="g-input" accept=".json,application/json" />
-            <button onclick="restoreBackupFromFile()" class="btn btn-primary" style="width:100%;padding:12px;font-size:12px;margin-top:9px"><i class="fas fa-file-import"></i> Restore JSON</button>
-          </div>
-          <div class="card" style="padding:12px;background:var(--surface);border-style:dashed">
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-              <div style="width:36px;height:36px;border-radius:11px;background:var(--green-dim);display:flex;align-items:center;justify-content:center;color:var(--green);flex-shrink:0"><i class="fas fa-file-excel"></i></div>
-              <div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:800">Restore Excel / XLS</div><div style="font-size:11px;color:var(--text-soft);margin-top:2px">Bisa upload .xlsx atau .xls dari hasil Backup Excel.</div></div>
-            </div>
-            <input id="restore-excel-file" type="file" class="g-input" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" />
-            <button onclick="restoreExcelFromFile()" class="btn btn-success" style="width:100%;padding:12px;font-size:12px;margin-top:9px"><i class="fas fa-file-import"></i> Restore Excel</button>
           </div>
           <div style="border:1px dashed var(--border);border-radius:14px;padding:12px;background:var(--surface)">
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
