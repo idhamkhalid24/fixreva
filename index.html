@@ -516,11 +516,11 @@
     if (item.createdAt?.toDate) return item.createdAt.toDate().getTime();
     if (typeof item.createdAtMs === 'number' && Number.isFinite(item.createdAtMs)) return item.createdAtMs;
     if (typeof item.time === 'string') {
-      const parsed = new Date(item.time.replace(' ', 'T') + '+07:00');
+      const parsed = new Date(item.time.replace(' ', 'T') + '+07:20');
       if (!Number.isNaN(parsed.getTime())) return parsed.getTime();
     }
     if (typeof item.createdAt === 'string') {
-      const parsed = new Date(item.createdAt.replace(' ', 'T') + '+07:00');
+      const parsed = new Date(item.createdAt.replace(' ', 'T') + '+07:20');
       if (!Number.isNaN(parsed.getTime())) return parsed.getTime();
     }
     return 0;
@@ -566,7 +566,7 @@
     const avgHour = Math.floor(avgMinutes / 60);
     const avgMin = Math.floor(avgMinutes % 60);
     const avgLabel = `${String(avgHour).padStart(2,'0')}:${String(avgMin).padStart(2,'0')}`;
-    // Batas: 07:00 = 420 menit. Lewat 07:00 (> 420) = perlu ditingkatkan
+    // Batas: 07:20 = 420 menit. Lewat 07:20 (> 420) = perlu ditingkatkan
     const isGood = avgMinutes <= 420;
     return { avgLabel, isGood, count: validCount };
   }
@@ -1113,24 +1113,24 @@
               </div>
             </div>`;
         } else {
-          const color = perf.isGood ? 'var(--green)' : 'var(--amber)';
-          const bgColor = perf.isGood ? 'var(--green-dim)' : 'var(--amber-dim)';
-          const borderColor = perf.isGood ? 'rgba(82,216,158,0.2)' : 'rgba(255,196,107,0.2)';
+          const color = perf.isGood ? 'var(--green)' : 'var(--red)';
+          const bgColor = perf.isGood ? 'var(--green-dim)' : 'var(--red-dim)';
+          const borderColor = perf.isGood ? 'rgba(82,216,158,0.2)' : 'rgba(255,107,107,0.2)';
           const icon = perf.isGood ? 'fa-circle-check' : 'fa-circle-exclamation';
           const label = perf.isGood ? 'Performa Baik ✓' : 'Perlu Ditingkatkan';
           perfCard.innerHTML = `
             <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
               <div style="flex:1;min-width:0">
                 <p class="label-xs" style="margin-bottom:4px">Rata-rata Jam Absen</p>
-                <div style="display:flex;align-items:center;gap:6px;margin-top:2px">
-                  <i class="fas ${icon}" style="color:${color};font-size:11px"></i>
-                  <p style="font-size:12px;font-weight:700;color:${color}">${label}</p>
+                <div style="display:inline-flex;align-items:center;gap:6px;margin-top:2px;padding:4px 9px;border-radius:999px;background:${bgColor};border:1px solid ${borderColor}">
+                  <i class="fas ${icon}" style="color:${color};font-size:10px"></i>
+                  <p style="font-size:11px;font-weight:800;color:${color};line-height:1">${label}</p>
                 </div>
-                <p style="font-size:10px;color:var(--text-ghost);margin-top:3px">Bulan ${month} · ${perf.count} hari hadir</p>
+                <p style="font-size:10px;color:var(--text-ghost);margin-top:5px">Bulan ${month} · ${perf.count} hari hadir</p>
               </div>
-              <div style="text-align:center;border:1px solid ${borderColor};border-radius:11px;padding:8px 12px;background:${bgColor};flex-shrink:0">
-                <p style="font-family:var(--num-font);font-size:20px;font-weight:800;color:${color};line-height:1">${perf.avgLabel}</p>
-                <p style="font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:${color};margin-top:3px;opacity:.8">Rata-rata</p>
+              <div style="text-align:center;border:1px solid ${borderColor};border-radius:11px;padding:7px 10px;background:${bgColor};flex-shrink:0;min-width:72px">
+                <p style="font-family:var(--num-font);font-size:16px;font-weight:850;color:${color};line-height:1">${perf.avgLabel}</p>
+                <p style="font-size:8px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:${color};margin-top:3px;opacity:.82">Rata-rata</p>
               </div>
             </div>`;
         }
