@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>Rocky Hijab Firebase - Staff Final</title>
+  <title>Rocky Hijab Firebase - v28 Fix Closing Terbaru</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Nunito+Sans:wght@600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -572,13 +572,47 @@
   function formatClosingDeadline() {
     return `${String(CLOSING_DEADLINE_HOUR).padStart(2,'0')}:${String(CLOSING_DEADLINE_MINUTE).padStart(2,'0')} WIB`;
   }
+  function normalizeTimeLabel(value) {
+    if (!value) return '';
+    const raw = String(value).trim().replace('.', ':').replace(/\s*WIB$/i, '');
+    const match = raw.match(/^(\d{1,2}):(\d{2})/);
+    if (!match) return '';
+    return `${String(Number(match[1])).padStart(2,'0')}:${match[2]}`;
+  }
+  function getDeadlineTimeLabel() {
+    return `${String(CLOSING_DEADLINE_HOUR).padStart(2,'0')}:${String(CLOSING_DEADLINE_MINUTE).padStart(2,'0')}`;
+  }
+  function getClosingTimeFromDelay(delayMinutes) {
+    const delay = Number(delayMinutes || 0);
+    if (!Number.isFinite(delay) || delay <= 0) return '';
+    const total = (CLOSING_DEADLINE_HOUR * 60) + CLOSING_DEADLINE_MINUTE + delay;
+    const hour = Math.floor(total / 60) % 24;
+    const minute = total % 60;
+    return `${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}`;
+  }
+  function getCurrentWIBTimeLabel(date = new Date()) {
+    const wib = getWIBDate(date);
+    return `${String(wib.hour).padStart(2,'0')}:${String(wib.minute).padStart(2,'0')}`;
+  }
   function getClosingDisplayTime(closing = getTodayClosing()) {
     if (!closing) return '';
-    if (closing.manualClosingTime) return String(closing.manualClosingTime).slice(0,5);
-    if (closing.closingTime) return String(closing.closingTime).slice(0,5);
-    const ms = Number(closing.closedAtMs || 0);
-    if (ms) return new Date(ms).toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit', timeZone:'Asia/Jakarta' }).replace('.', ':');
-    return '';
+    // Prioritas tile/menu Absen Hari Ini:
+    // - Kalau admin EDIT jam setelah closing => pakai manualClosingTime.
+    // - Kalau admin BATAL lalu CLOSING lagi => pakai jam closing terbaru / actualClosingTime,
+    //   bukan manualClosingTime lama yang tersisa dari edit sebelumnya.
+    const manualTime = normalizeTimeLabel(closing.manualClosingTime);
+    const actualTime = normalizeTimeLabel(closing.actualClosingTime);
+    const savedClosingTime = normalizeTimeLabel(closing.closingTime);
+    const closedAtMs = Number(closing.closedAtMs || 0);
+    const editedAtMs = Number(closing.editedAtMs || 0);
+    if (manualTime && editedAtMs && (!closedAtMs || editedAtMs >= closedAtMs)) return manualTime;
+    if (actualTime) return actualTime;
+    const deadlineTime = getDeadlineTimeLabel();
+    if (savedClosingTime && savedClosingTime !== deadlineTime) return savedClosingTime;
+    const delayTime = getClosingTimeFromDelay(closing.delayMinutes);
+    if (delayTime) return delayTime;
+    if (closedAtMs) return new Date(closedAtMs).toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit', timeZone:'Asia/Jakarta' }).replace('.', ':');
+    return manualTime || savedClosingTime || '';
   }
   function parseClosingTimeInput(value) {
     const raw = String(value || '').trim().replace('.', ':');
@@ -625,18 +659,16 @@
   }
   function renderClosingStatusHtml(compact = false) {
     const closing = getTodayClosing();
-if (!closing) {
-  return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 13px;border:1px solid var(--border);border-radius:13px;background:var(--surface)">
-    <div style="min-width:0">
-      <div style="font-size:12px;font-weight:800;color:var(--green)">
-        <i class="fas fa-lock-open"></i> Transaksi masih terbuka
-      </div>
-      <div style="font-size:10.5px;color:var(--text-soft);margin-top:3px">
-        Transaksi masih berjalan
-      </div>
-    </div>
-  </div>`;
-}
+    if (!closing) {
+      const lateMinutes = getClosingDelayMinutes(nowDate());
+      const estBonus = lateMinutes * CLOSING_BONUS_PER_MINUTE;
+      return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:${compact?'10px 11px':'12px 13px'};border:1px solid var(--border);border-radius:13px;background:var(--surface)">
+        <div style="min-width:0">
+          <div style="font-size:12px;font-weight:800;color:var(--green)"><i class="fas fa-lock-open"></i> Transaksi masih terbuka</div>
+          <div style="font-size:10.5px;color:var(--text-soft);margin-top:3px">Transaksi masih berjalan</div>
+        </div>
+      </div>`;
+    }
     return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:${compact?'10px 11px':'12px 13px'};border:1px solid rgba(255,196,107,.22);border-radius:13px;background:var(--amber-dim)">
       <div style="min-width:0">
         <div style="font-size:12px;font-weight:800;color:var(--amber)"><i class="fas fa-lock"></i> Transaksi sudah closing</div>
@@ -652,6 +684,7 @@ if (!closing) {
     const pin = prompt(`Closing transaksi tanggal ${today}?\nSetelah closing, staff tidak bisa tambah transaksi sampai tanggal berikutnya.\nMasukkan PIN admin:`);
     if (!pin) return;
     if (String(pin) !== String(currentUser.pin)) return showToast('PIN salah!', true);
+    const currentClosingTime = getCurrentWIBTimeLabel(nowDate());
     const delayMinutes = getClosingDelayMinutes(nowDate());
     const bonusValue = delayMinutes * CLOSING_BONUS_PER_MINUTE;
     const { users, bonusByUser, totalBonus } = buildClosingBonusByUser(bonusValue);
@@ -667,6 +700,12 @@ if (!closing) {
         closedAtMs: Date.now(),
         closedBy: currentUser.username,
         closedByName: currentUser.name,
+        actualClosingTime: currentClosingTime,
+        closingTime: currentClosingTime,
+        manualClosingTime: currentClosingTime,
+        canceled: false,
+        canceledAtMs: null,
+        editedAtMs: null,
         deadline: formatClosingDeadline(),
         delayMinutes,
         bonusPerMinute: CLOSING_BONUS_PER_MINUTE,
@@ -675,8 +714,27 @@ if (!closing) {
         totalUsers: users.length,
         totalBonus
       }, { merge: true });
-      await logAudit('closing_day', { dateKey: today, delayMinutes, bonusPerUser: bonusValue, totalUsers: users.length, totalBonus });
-      showToast(delayMinutes ? `✓ Closing berhasil · bonus Rp ${formatRupiah(bonusValue)}/user` : '✓ Closing berhasil');
+      cachedClosings = [{
+        id: today,
+        closed: true,
+        dateKey: today,
+        monthKey: toMonthKey(nowDate()),
+        closedAtMs: Date.now(),
+        closedBy: currentUser.username,
+        closedByName: currentUser.name,
+        actualClosingTime: currentClosingTime,
+        closingTime: currentClosingTime,
+        manualClosingTime: currentClosingTime,
+        canceled: false,
+        editedAtMs: null,
+        delayMinutes,
+        bonusPerUser: bonusValue,
+        bonusByUser,
+        totalUsers: users.length,
+        totalBonus
+      }, ...cachedClosings.filter(c => (c.id !== today && c.dateKey !== today))];
+      await logAudit('closing_day', { dateKey: today, closingTime: currentClosingTime, delayMinutes, bonusPerUser: bonusValue, totalUsers: users.length, totalBonus });
+      showToast(delayMinutes ? `✓ Closing berhasil · jam ${currentClosingTime} · bonus Rp ${formatRupiah(bonusValue)}/user` : `✓ Closing berhasil · jam ${currentClosingTime}`);
       await refreshCurrentPage();
     } catch (e) {
       console.error(e);
@@ -719,6 +777,19 @@ if (!closing) {
         editedByName: currentUser.name
       }, { merge: true });
       await logAudit('closing_time_edit', { dateKey, closingTime: parsed.label, delayMinutes, bonusPerUser: bonusValue, totalUsers: users.length, totalBonus });
+      cachedClosings = cachedClosings.map(c => (c.id === dateKey || c.dateKey === dateKey) ? {
+        ...c,
+        manualClosingTime: parsed.label,
+        closingTime: parsed.label,
+        delayMinutes,
+        bonusPerUser: bonusValue,
+        bonusByUser,
+        totalUsers: users.length,
+        totalBonus,
+        editedAtMs: Date.now(),
+        editedBy: currentUser.username,
+        editedByName: currentUser.name
+      } : c);
       showToast('✓ Jam closing diperbarui');
       await refreshCurrentPage();
     } catch (e) {
@@ -1252,7 +1323,9 @@ if (!closing) {
       return;
     }
     if (isTransactionsClosedToday()) {
-      el.innerHTML = `<div style="display:flex;flex-direction:column;gap:3px"><div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--amber)"><i class="fas fa-lock"></i> Transaksi sudah closing</div><div style="font-size:12px;color:var(--text-soft)">Input transaksi terbuka lagi otomatis besok.</div></div>`;
+      const closing = getTodayClosing();
+      const jamClosing = getClosingDisplayTime(closing) || '--:--';
+      el.innerHTML = `<div style="display:flex;flex-direction:column;gap:3px"><div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--amber)"><i class="fas fa-lock"></i> Transaksi sudah closing</div><div style="font-size:12px;color:var(--text-soft)">Jam closing: ${jamClosing} WIB · terbuka lagi besok.</div></div>`;
     } else if (!attendanceReady) {
       if (hasClockedInToday()) {
         const rec = getTodayAttendanceRecord();
@@ -1310,10 +1383,9 @@ if (!closing) {
       .slice(0, limitRows);
   }
   function formatClosingHistoryTime(closing) {
-    if (!closing) return '--:--';
-    if (closing.manualClosingTime) return String(closing.manualClosingTime).slice(0,5);
-    if (closing.closingTime) return String(closing.closingTime).slice(0,5);
-    const ms = Number(closing.closedAtMs || closing.editedAtMs || 0);
+    const jam = getClosingDisplayTime(closing);
+    if (jam) return jam;
+    const ms = Number(closing?.closedAtMs || closing?.editedAtMs || 0);
     if (ms) return new Date(ms).toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit', timeZone:'Asia/Jakarta' }).replace('.', ':');
     return '--:--';
   }
@@ -1445,7 +1517,7 @@ if (!closing) {
       if (todayClosing) {
         card.style.background = 'var(--amber-dim)'; card.style.borderColor = 'rgba(255,196,107,0.22)';
         lbl.style.color = 'var(--amber)'; info.style.color = 'var(--amber)';
-        lbl.innerText = 'Closing';
+        lbl.innerText = 'Jam Closing';
       } else if (rec) {
         card.style.background = 'var(--green-dim)'; card.style.borderColor = 'rgba(82,216,158,0.2)';
         lbl.style.color = 'var(--green)'; info.style.color = 'var(--green)';
