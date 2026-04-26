@@ -625,16 +625,18 @@
   }
   function renderClosingStatusHtml(compact = false) {
     const closing = getTodayClosing();
-    if (!closing) {
-      const lateMinutes = getClosingDelayMinutes(nowDate());
-      const estBonus = lateMinutes * CLOSING_BONUS_PER_MINUTE;
-      return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:${compact?'10px 11px':'12px 13px'};border:1px solid var(--border);border-radius:13px;background:var(--surface)">
-        <div style="min-width:0">
-          <div style="font-size:12px;font-weight:800;color:var(--green)"><i class="fas fa-lock-open"></i> Transaksi masih terbuka</div>
-          <div style="font-size:10.5px;color:var(--text-soft);margin-top:3px">Deadline closing ${formatClosingDeadline()}${lateMinutes ? ` · estimasi bonus Rp ${formatRupiah(estBonus)}/user` : ''}</div>
-        </div>
-      </div>`;
-    }
+if (!closing) {
+  return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 13px;border:1px solid var(--border);border-radius:13px;background:var(--surface)">
+    <div style="min-width:0">
+      <div style="font-size:12px;font-weight:800;color:var(--green)">
+        <i class="fas fa-lock-open"></i> Transaksi masih terbuka
+      </div>
+      <div style="font-size:10.5px;color:var(--text-soft);margin-top:3px">
+        Transaksi masih berjalan
+      </div>
+    </div>
+  </div>`;
+}
     return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:${compact?'10px 11px':'12px 13px'};border:1px solid rgba(255,196,107,.22);border-radius:13px;background:var(--amber-dim)">
       <div style="min-width:0">
         <div style="font-size:12px;font-weight:800;color:var(--amber)"><i class="fas fa-lock"></i> Transaksi sudah closing</div>
