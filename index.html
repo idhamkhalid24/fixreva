@@ -115,9 +115,9 @@
 
   <div id="transaction-modal" class="modal-wrap">
     <div class="modal-sheet">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px">
         <div>
-          <h3 style="font-size:16px;font-weight:800;letter-spacing:-.02em">Transaksi Manual</h3>
+          <h3 style="font-size:16px;font-weight:800;letter-spacing:-.02em">Transaksi Baru</h3>
         </div>
         <button onclick="closeTransactionModal()" class="btn btn-glass" style="width:36px;height:36px;padding:0;border-radius:12px"><i class="fas fa-xmark"></i></button>
       </div>
@@ -128,7 +128,7 @@
         </div>
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:14px 15px">
           <p class="label-xs">Nominal</p>
-          <input id="modal-pos-amount" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="0" class="amount-display" data-numeric="0">
+          <input id="modal-pos-amount" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="" autocomplete="off" class="amount-display" data-numeric="0">
         </div>
       </div>
       <div id="modal-pos-status" style="margin:14px 0 0"></div>
@@ -416,7 +416,7 @@
         </div>
       </div>
       <div class="card page-in s4" style="padding:16px 16px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px">
           <div>
             <p class="label-xs" style="margin:0">Aktivitas Admin Terbaru</p>
             <p style="font-size:11px;color:var(--text-soft);margin-top:4px">Ringkas, fokus ke aksi penting terakhir.</p>
@@ -777,9 +777,8 @@
     input.dataset.bound = 'true';
     input.addEventListener('input', function () {
       const numeric = (this.value || '').replace(/\D/g, '');
-      const value = parseInt(numeric || '0', 10);
-      this.setAttribute('data-numeric', String(value));
-      this.value = numeric ? formatRupiah(value) : '';
+      this.value = numeric;
+      this.setAttribute('data-numeric', numeric || '0');
     });
   }
 
@@ -2040,7 +2039,7 @@
             <div style="padding:18px 0 12px;display:flex;justify-content:space-between;align-items:center;gap:12px" class="page-in">
               <div style="min-width:0">
                 <p style="font-size:11px;color:var(--text-ghost);font-weight:700;margin-bottom:3px">Halo, ${escapeHtml(currentUser.name)}</p>
-                <h2 style="font-size:20px;font-weight:850;letter-spacing:-.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Dashboard Staff</h2>
+                <h2 style="font-size:20px;font-weight:850;letter-spacing:-.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Bismillah Dulu</h2>
               </div>
               <div class="header-actions">
                 <button class="theme-toggle" onclick="toggleTheme()">${themeIcon}</button>
