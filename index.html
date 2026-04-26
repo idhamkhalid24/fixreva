@@ -69,7 +69,10 @@
     .nav-item{display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 14px;border-radius:14px;cursor:pointer;background:none;border:none;color:var(--text-ghost);min-width:52px}
     .nav-item i{font-size:17px}.nav-item span{font-size:8.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
     .nav-item.active{background:var(--accent-dim);color:var(--accent)}
-    .fab-add{position:fixed;right:22px;bottom:86px;width:58px;height:58px;border-radius:20px;border:none;background:linear-gradient(135deg,var(--accent),#7aa5ff);color:white;display:none;align-items:center;justify-content:center;box-shadow:0 14px 32px var(--accent-glow);z-index:110;cursor:pointer;font-size:22px;transition:transform .16s ease, box-shadow .16s ease}.fab-add:active{transform:scale(.92) rotate(8deg)}.fab-add.staff-fab{bottom:24px;right:20px;width:62px;height:62px;border-radius:22px}
+    #bottom-nav.staff-nav{justify-content:center;gap:16px;padding:0 12px}
+    #bottom-nav.staff-nav .nav-item{flex:1;max-width:124px}
+    .swipe-hint{display:flex;align-items:center;justify-content:center;gap:7px;margin:8px 0 0;font-size:10.5px;color:var(--text-ghost);font-weight:700}
+    .fab-add{position:fixed;right:22px;bottom:86px;width:58px;height:58px;border-radius:20px;border:none;background:linear-gradient(135deg,var(--accent),#7aa5ff);color:white;display:none;align-items:center;justify-content:center;box-shadow:0 14px 32px var(--accent-glow);z-index:110;cursor:pointer;font-size:22px;transition:transform .16s ease, box-shadow .16s ease}.fab-add:active{transform:scale(.92) rotate(8deg)}.fab-add.staff-fab{bottom:100px;right:20px;width:62px;height:62px;border-radius:22px}
     #loading{position:fixed;inset:0;background:rgba(10,13,20,.7);backdrop-filter:blur(16px);z-index:200;display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px}
     .loader-ring{width:40px;height:40px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .65s linear infinite}
     @keyframes spin{to{transform:rotate(360deg)}}
@@ -197,6 +200,7 @@
   let attendanceReady = false, isBusy = false, auditLogLimit = 10, recycleBinLimit = 20, recycleSearch = '', recycleUserFilter = 'all', historyDisplayLimit = 30, inactiveUserLimit = 30, adminMoreOpen = false;
   const TX_SYNC_LIMIT_ADMIN = 800, TX_SYNC_LIMIT_STAFF = 400, ATT_SYNC_LIMIT_ADMIN = 800, ATT_SYNC_LIMIT_STAFF = 400, AUDIT_SYNC_LIMIT = 40, CLOSING_SYNC_LIMIT = 120, HISTORY_PAGE_STEP = 30, INACTIVE_USER_STEP = 30;
   const CLOSING_DEADLINE_HOUR = 18, CLOSING_DEADLINE_MINUTE = 0, DEFAULT_CLOSING_BONUS_PER_MINUTE = 100, DEFAULT_TRANSACTION_BONUS_RATE = 0.015;
+  let staffSwipeStartX = 0, staffSwipeStartY = 0, staffSwipeStartT = 0;
 
   const $ = (id) => document.getElementById(id);
   const setLoading = (s) => {
@@ -2709,6 +2713,8 @@
 
   function setActiveNav(page) {
     applyNavRoleLabels();
+    const navEl = $('bottom-nav');
+    if (navEl) navEl.classList.toggle('staff-nav', !!currentUser && !isAdmin());
     ['home','history','report','settings'].forEach(p => {
       const btn = $('nav-' + p); if (btn) btn.classList.toggle('active', p === page || (page === 'adminLogs' && p === 'settings'));
     });
@@ -2718,12 +2724,41 @@
     fab.style.display = currentUser && (isAdmin() ? ['home','history','report','settings'].includes(page) : page === 'home') ? 'flex' : 'none';
   }
 
+
+  function handleStaffSwipeStart(e) {
+    if (!currentUser || isAdmin()) return;
+    const touch = e.touches && e.touches[0];
+    if (!touch) return;
+    staffSwipeStartX = touch.clientX;
+    staffSwipeStartY = touch.clientY;
+    staffSwipeStartT = Date.now();
+  }
+
+  function handleStaffSwipeEnd(e) {
+    if (!currentUser || isAdmin()) return;
+    if (!['home','history'].includes(currentPage)) return;
+    const touch = e.changedTouches && e.changedTouches[0];
+    if (!touch || !staffSwipeStartT) return;
+    const dx = touch.clientX - staffSwipeStartX;
+    const dy = touch.clientY - staffSwipeStartY;
+    const dt = Date.now() - staffSwipeStartT;
+    staffSwipeStartT = 0;
+    if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.35 || dt > 900) return;
+    if (dx < 0 && currentPage === 'home') router.navigate('history');
+    if (dx > 0 && currentPage === 'history') router.navigate('home');
+  }
+
   const router = {
     navigate: async (page) => {
       currentPage = page;
       const content = $('page-content');
       const nav = $('bottom-nav');
       const themeIcon = getTheme() === 'dark' ? '<i class="fas fa-moon"></i>' : '<i class="fas fa-sun"></i>';
+      if (!window.__staffSwipeReady && content) {
+        content.addEventListener('touchstart', handleStaffSwipeStart, { passive:true });
+        content.addEventListener('touchend', handleStaffSwipeEnd, { passive:true });
+        window.__staffSwipeReady = true;
+      }
 
       if (page === 'login') {
         nav.style.display = 'none';
@@ -2813,6 +2848,7 @@
               <span><i class="fas fa-receipt"></i> Lihat Riwayat Hari Ini</span>
               <i class="fas fa-chevron-right"></i>
             </button>
+            <div class="swipe-hint page-in s4"><i class="fas fa-hand-pointer"></i> Geser kiri untuk Riwayat Hari Ini</div>
           </div>`;
         updateLocation(); updateHomeStatus(); updateHomeStats();
       } else if (page === 'history') {
@@ -2833,6 +2869,7 @@
                   <button class="theme-toggle logout-btn" onclick="logout()" title="Logout"><i class="fas fa-power-off"></i></button>
                 </div>
               </div>
+              <div class="swipe-hint page-in s1" style="margin-bottom:10px"><i class="fas fa-arrow-left"></i> Geser kanan untuk Beranda</div>
               <div id="staff-today-history-page"></div>
             </div>`;
           renderStaffTodayHistoryPage();
