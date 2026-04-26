@@ -1289,6 +1289,65 @@
   }
 
 
+
+  function getClosingHistoryRows(limitRows = 14) {
+    return [...(cachedClosings || [])]
+      .filter(c => c && (c.dateKey || c.id))
+      .sort((a, b) => String(b.dateKey || b.id || '').localeCompare(String(a.dateKey || a.id || '')))
+      .slice(0, limitRows);
+  }
+  function formatClosingHistoryTime(closing) {
+    if (!closing) return '--:--';
+    if (closing.manualClosingTime) return String(closing.manualClosingTime).slice(0,5);
+    if (closing.closingTime) return String(closing.closingTime).slice(0,5);
+    const ms = Number(closing.closedAtMs || closing.editedAtMs || 0);
+    if (ms) return new Date(ms).toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit', timeZone:'Asia/Jakarta' }).replace('.', ':');
+    return '--:--';
+  }
+  function formatClosingCancelTime(closing) {
+    const ms = Number(closing?.canceledAtMs || 0);
+    if (!ms) return '';
+    return new Date(ms).toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit', timeZone:'Asia/Jakarta' }).replace('.', ':');
+  }
+  function renderClosingHistoryCard() {
+    if (!isAdmin()) return '';
+    const rows = getClosingHistoryRows(16);
+    return `
+      <div class="card" style="padding:14px 16px;margin-top:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px">
+          <div>
+            <p class="label-xs" style="margin:0">Riwayat Closing</p>
+            <p style="font-size:11px;color:var(--text-soft);margin-top:4px">Cek tanggal closing, jam closing, status aktif/batal, dan admin yang proses.</p>
+          </div>
+          <span class="status-pill status-ok">${rows.length} data</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          ${rows.length ? rows.map(c => {
+            const active = c.closed === true;
+            const canceled = c.canceled === true || c.closed === false;
+            const dateKey = c.dateKey || c.id || '-';
+            const jam = formatClosingHistoryTime(c);
+            const cancelJam = formatClosingCancelTime(c);
+            const actor = active ? (c.closedByName || c.closedBy || '-') : (c.canceledByName || c.canceledBy || c.closedByName || c.closedBy || '-');
+            const statusClass = active ? 'status-ok' : 'status-warn';
+            const statusText = active ? 'Closed' : 'Dibatalkan';
+            return `
+              <div style="display:flex;align-items:center;gap:11px;padding:11px 12px;border:1px solid var(--border);border-radius:13px;background:var(--surface)">
+                <div style="width:38px;height:38px;border-radius:12px;background:${active ? 'var(--green-dim)' : 'var(--red-dim)'};display:flex;align-items:center;justify-content:center;flex-shrink:0;color:${active ? 'var(--green)' : 'var(--red)'}"><i class="fas ${active ? 'fa-lock' : 'fa-unlock'}"></i></div>
+                <div style="min-width:0;flex:1">
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+                    <div style="font-size:13px;font-weight:850;line-height:1.25">${formatDateLabel(dateKey)}</div>
+                    <span class="status-pill ${statusClass}" style="font-size:9.5px;padding:4px 8px;white-space:nowrap">${statusText}</span>
+                  </div>
+                  <div style="font-size:10.5px;color:var(--text-soft);margin-top:4px">Jam closing ${jam} WIB${canceled && cancelJam ? ` · batal ${cancelJam} WIB` : ''}</div>
+                  <div style="font-size:10.5px;color:var(--text-ghost);margin-top:3px">Oleh ${escapeHtml(actor)} · bonus/user Rp ${formatRupiah(c.bonusPerUser || 0)}</div>
+                </div>
+              </div>`;
+          }).join('') : `<div style="font-size:12px;color:var(--text-soft);padding:12px;border:1px dashed var(--border);border-radius:12px;text-align:center">Belum ada riwayat closing.</div>`}
+        </div>
+      </div>`;
+  }
+
   function renderAdminClosingPanel() {
     if (!isAdmin()) return;
     const box = $('admin-closing-panel');
@@ -1296,26 +1355,51 @@
     const closing = getTodayClosing();
     const lateMinutes = getClosingDelayMinutes(nowDate());
     const estBonus = lateMinutes * CLOSING_BONUS_PER_MINUTE;
+    const displayDelay = closing ? (closing.delayMinutes || 0) : lateMinutes;
+    const displayBonus = closing ? (closing.bonusPerUser || 0) : estBonus;
+    const closingJam = closing ? getClosingDisplayTime(closing) : '';
     box.innerHTML = `
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
-        <div style="min-width:0;flex:1">
-          <p class="label-xs" style="margin-bottom:7px">Closing Transaksi</p>
-          ${renderClosingStatusHtml(true)}
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
-            <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 11px">
-              <div style="font-size:9.5px;color:var(--text-ghost);font-weight:800;text-transform:uppercase;margin-bottom:4px">Lewat Deadline</div>
-              <div style="font-family:var(--num-font);font-size:18px;font-weight:850;color:${lateMinutes?'var(--amber)':'var(--green)'}">${closing ? (closing.delayMinutes || 0) : lateMinutes} menit</div>
+      <div style="background:linear-gradient(145deg,var(--bg3),var(--bg2));border:1px solid ${closing?'rgba(255,196,107,.24)':'rgba(91,143,255,.18)'};border-radius:18px;padding:14px;box-shadow:0 10px 28px rgba(0,0,0,.14);position:relative;overflow:hidden">
+        <div style="position:absolute;top:-38px;right:-42px;width:120px;height:120px;background:radial-gradient(circle,${closing?'rgba(255,196,107,.16)':'rgba(91,143,255,.16)'} 0%,transparent 70%);pointer-events:none"></div>
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;position:relative;z-index:1;margin-bottom:12px">
+          <div style="min-width:0;flex:1">
+            <p class="label-xs" style="margin-bottom:5px">Closing Transaksi</p>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span class="status-pill ${closing?'status-warn':'status-ok'}" style="font-size:10px;padding:5px 10px">
+                <i class="fas ${closing?'fa-lock':'fa-lock-open'}"></i> ${closing?'Sudah Closing':'Masih Terbuka'}
+              </span>
+              <span class="user-chip" style="font-size:10.5px"><i class="fas fa-clock"></i> Deadline ${formatClosingDeadline()}</span>
             </div>
-            <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 11px">
-              <div style="font-size:9.5px;color:var(--text-ghost);font-weight:800;text-transform:uppercase;margin-bottom:4px">Bonus/User</div>
-              <div style="font-family:var(--num-font);font-size:18px;font-weight:850;color:var(--accent)">Rp ${formatRupiah(closing ? (closing.bonusPerUser || 0) : estBonus)}</div>
+            <div style="font-size:11.5px;color:var(--text-soft);margin-top:8px;line-height:1.45">
+              ${closing ? `Terkunci jam <b style="color:var(--amber);font-family:var(--num-font)">${closingJam || '--:--'} WIB</b>. Staff otomatis bisa transaksi lagi besok.` : `Belum closing hari ini. Estimasi bonus mengikuti keterlambatan setelah jam 18:00.`}
             </div>
           </div>
+          <div style="width:42px;height:42px;border-radius:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:${closing?'var(--amber-dim)':'var(--accent-dim)'};color:${closing?'var(--amber)':'var(--accent)'};border:1px solid ${closing?'rgba(255,196,107,.22)':'rgba(91,143,255,.22)'}">
+            <i class="fas ${closing?'fa-store-slash':'fa-store'}" style="font-size:15px"></i>
+          </div>
         </div>
-        <div style="display:flex;flex-direction:column;gap:8px;flex-shrink:0">
-          <button onclick="handleClosingDay()" ${closing?'disabled':''} class="btn ${closing?'btn-glass':'btn-primary'}" style="padding:11px 12px;font-size:12px;border-radius:13px;white-space:nowrap"><i class="fas fa-lock"></i> ${closing?'Sudah Closing':'Closing'}</button>
-          <button onclick="handleEditClosingTime()" ${closing?'':'disabled'} class="btn btn-glass" style="padding:9px 11px;font-size:11px;border-radius:12px;white-space:nowrap"><i class="fas fa-pen-to-square"></i> Edit Jam</button>
-          <button onclick="handleCancelClosingToday()" ${closing?'':'disabled'} class="btn btn-danger" style="padding:9px 11px;font-size:11px;border-radius:12px;white-space:nowrap"><i class="fas fa-unlock"></i> Batal</button>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;position:relative;z-index:1;margin-bottom:10px">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:11px 12px">
+            <div style="font-size:9.5px;color:var(--text-ghost);font-weight:800;text-transform:uppercase;margin-bottom:4px">Lewat Deadline</div>
+            <div style="font-family:var(--num-font);font-size:20px;font-weight:900;color:${displayDelay?'var(--amber)':'var(--green)'}">${displayDelay} menit</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:11px 12px">
+            <div style="font-size:9.5px;color:var(--text-ghost);font-weight:800;text-transform:uppercase;margin-bottom:4px">Bonus/User</div>
+            <div style="font-family:var(--num-font);font-size:20px;font-weight:900;color:var(--accent)">Rp ${formatRupiah(displayBonus)}</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;position:relative;z-index:1">
+          <button onclick="handleClosingDay()" ${closing?'disabled':''} class="btn ${closing?'btn-glass':'btn-primary'}" style="height:46px;padding:0 8px;font-size:11px;border-radius:14px;flex-direction:column;gap:3px;line-height:1.1">
+            <i class="fas fa-lock" style="font-size:13px"></i><span>${closing?'Closed':'Closing'}</span>
+          </button>
+          <button onclick="handleEditClosingTime()" ${closing?'':'disabled'} class="btn btn-glass" style="height:46px;padding:0 8px;font-size:11px;border-radius:14px;flex-direction:column;gap:3px;line-height:1.1">
+            <i class="fas fa-pen-to-square" style="font-size:13px"></i><span>Edit Jam</span>
+          </button>
+          <button onclick="handleCancelClosingToday()" ${closing?'':'disabled'} class="btn btn-danger" style="height:46px;padding:0 8px;font-size:11px;border-radius:14px;flex-direction:column;gap:3px;line-height:1.1">
+            <i class="fas fa-unlock" style="font-size:13px"></i><span>Batal</span>
+          </button>
         </div>
       </div>`;
   }
@@ -2188,6 +2272,8 @@
         </div>
         <p style="font-size:11px;color:var(--text-soft);margin-top:10px">Perhitungan memakai rata-rata jam absen bulan berjalan. Jam 07:20 atau lebih awal = performa baik.</p>
       </div>
+
+      ${renderClosingHistoryCard()}
 
       <div class="card" style="padding:14px 16px;margin-top:12px">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px">
