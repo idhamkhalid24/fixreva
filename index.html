@@ -83,14 +83,11 @@
     .tab-group{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:3px;display:flex;gap:2px}
     .tab-btn{flex:1;padding:8px 4px;border-radius:9px;font-size:11px;font-weight:600;color:var(--text-ghost);background:none;border:none;cursor:pointer}
     .tab-btn.active{background:var(--accent);color:white}
-    .trx-card{background:var(--bg2);border:1px solid var(--border);border-radius:18px;padding:14px 14px;display:flex;align-items:flex-start;gap:10px;box-shadow:0 4px 18px rgba(0,0,0,.04)}
-    .trx-icon{display:none}
-    .trx-main{flex:1;min-width:0}
-    .trx-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
-    .trx-note{font-size:17px;font-weight:800;color:var(--text);line-height:1.25;white-space:normal;overflow:visible;text-overflow:unset;max-width:100%;word-break:break-word}
-    .trx-amount{font-family:var(--num-font);font-size:16px;font-weight:800;white-space:nowrap;color:var(--text)}
-    .trx-time{font-family:var(--num-font);font-size:11px;color:var(--text-soft);margin-top:8px}
-    .trx-delete{width:36px;height:36px;flex-shrink:0;border-radius:12px!important;padding:0!important;font-size:12px!important;margin-top:16px}
+    .trx-card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:13px 15px;display:flex;align-items:center;gap:13px}
+    .trx-icon{width:38px;height:38px;background:var(--accent-dim);border-radius:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px;color:var(--accent)}
+    .trx-amount{font-family:var(--num-font);font-size:16px;font-weight:600}
+    .trx-note{font-size:11.5px;color:var(--text-soft);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:155px}
+    .trx-time{font-family:var(--num-font);font-size:9px;color:var(--text-ghost);margin-top:3px}
     .setting-row{display:flex;align-items:center;gap:13px;padding:13px 15px;background:var(--bg2);border:1px solid var(--border);border-radius:13px;cursor:pointer;width:100%;font-family:'Inter',sans-serif}
     .setting-ico{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
     .setting-label{font-size:13px;font-weight:500;color:var(--text);flex:1;text-align:left}
@@ -1120,17 +1117,17 @@
       <div style="display:flex;flex-direction:column;gap:7px" class="page-in s3">
         ${visibleItems.map(t => `
           <div class="trx-card">
-            <div class="trx-main">
-              <div class="trx-top">
-                <p class="trx-note">${escapeHtml(t.note || 'Transaksi')}</p>
+            <div class="trx-icon"><i class="fas fa-arrow-trend-up"></i></div>
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:7px;margin-bottom:2px;flex-wrap:wrap">
                 <span class="trx-amount">Rp ${formatRupiah(t.amount)}</span>
-              </div>
-              <div style="display:flex;align-items:center;gap:7px;margin-top:6px;flex-wrap:wrap">
-                <p class="trx-time" style="margin:0">${(() => { const ms = getRecordTimeMs(t); return ms ? dateToTimeInput(new Date(ms)) : formatDateLabel(getTransactionDateKey(t)); })()}</p>
+                <span class="badge badge-blue">POS</span>
                 ${isAdmin() ? `<span class="user-chip"><i class="fas fa-user" style="font-size:10px"></i>${escapeHtml(t.name || t.user)}</span>` : ''}
               </div>
+              <p class="trx-note">${escapeHtml(t.note || 'Transaksi')}</p>
+              <p class="trx-time">${(() => { const ms = getRecordTimeMs(t); return ms ? dateToTimeInput(new Date(ms)) : formatDateLabel(getTransactionDateKey(t)); })()}</p>
             </div>
-            <button onclick="deleteTransaction('${t.id}')" class="btn btn-danger trx-delete"><i class="fas fa-trash-can"></i></button>
+            <button onclick="deleteTransaction('${t.id}')" class="btn btn-danger" style="width:34px;height:34px;flex-shrink:0;border-radius:9px;padding:0;font-size:11px"><i class="fas fa-trash-can"></i></button>
           </div>
         `).join('') || `<div style="text-align:center;padding:56px 0;color:var(--text-ghost)"><i class="fas fa-inbox" style="font-size:30px;margin-bottom:10px;display:block;opacity:0.5"></i><p style="font-size:12.5px">Tidak ada transaksi</p></div>`}
       </div>
@@ -2045,7 +2042,7 @@
             <div style="padding:18px 0 12px;display:flex;justify-content:space-between;align-items:center;gap:12px" class="page-in">
               <div style="min-width:0">
                 <p style="font-size:11px;color:var(--text-ghost);font-weight:700;margin-bottom:3px">Halo, ${escapeHtml(currentUser.name)}</p>
-                <h2 style="font-size:20px;font-weight:850;letter-spacing:-.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Bismillah Dulu</h2>
+                <h2 style="font-size:20px;font-weight:850;letter-spacing:-.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Dashboard Staff</h2>
               </div>
               <div class="header-actions">
                 <button class="theme-toggle theme-btn" onclick="toggleTheme()">${themeIcon}</button>
