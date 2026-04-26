@@ -105,6 +105,16 @@
     .summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
     .page-in{animation:pageIn .22s ease both}.s1{animation-delay:.04s}.s2{animation-delay:.08s}.s3{animation-delay:.12s}.s4{animation-delay:.16s}
     @keyframes pageIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+
+    /* === ADMIN COMPACT FULL 1 LAYAR === */
+    .page-pad .card{border-radius:14px}
+    @media(max-width:430px){
+      .page-title{font-size:19px}
+      .stat-hero{padding:16px 15px}
+      .stat-value{font-size:23px}
+      .stat-mini{padding:11px 9px}
+      .stat-mini-num{font-size:21px}
+    }
   </style>
 </head>
 <body>
@@ -443,16 +453,11 @@
     if (!board) return;
     const stats = getAdminDashboardData();
     board.innerHTML = `
-      <div class="summary-grid page-in s3">
-        <div class="card" style="padding:14px 15px"><p class="label-xs" style="margin-bottom:8px">User Aktif Hari Ini</p><p style="font-family:var(--num-font);font-size:22px;font-weight:800;color:var(--green)">${stats.activeToday}</p></div>
-        <div class="card" style="padding:14px 15px"><p class="label-xs" style="margin-bottom:8px">User Aktif Sistem</p><p style="font-family:var(--num-font);font-size:22px;font-weight:800;color:var(--accent)">${activeUsers().length}</p></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px" class="page-in s3">
+        <div class="card" style="padding:10px 11px"><p class="label-xs" style="margin-bottom:5px;font-size:9px">User Aktif Hari Ini</p><p style="font-family:var(--num-font);font-size:18px;font-weight:850;color:var(--green);line-height:1">${stats.activeToday}</p></div>
+        <div class="card" style="padding:10px 11px"><p class="label-xs" style="margin-bottom:5px;font-size:9px">User Sistem</p><p style="font-family:var(--num-font);font-size:18px;font-weight:850;color:var(--accent);line-height:1">${activeUsers().length}</p></div>
       </div>
-      <div class="card page-in s4" style="padding:16px 16px;margin-bottom:10px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><p class="label-xs" style="margin:0">Ranking Omzet User</p><span class="user-chip">${getSelectedUserLabel()}</span></div>
-        <div style="display:flex;flex-direction:column;gap:8px">
-          ${stats.leaderboard.length ? stats.leaderboard.map((row, idx) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface)"><div><div style="font-size:12px;font-weight:700">#${idx+1} ${escapeHtml(row.name)}</div><div style="font-size:10px;color:var(--text-soft)">${row.transaksi} transaksi</div></div><div style="font-family:var(--num-font);font-size:12px;font-weight:700">Rp ${formatRupiah(row.omzet)}</div></div>`).join('') : `<div style="font-size:12px;color:var(--text-soft)">Belum ada data transaksi.</div>`}
-        </div>
-      </div>
+      <button onclick="router.navigate('report')" class="btn btn-glass page-in s4" style="width:100%;padding:10px 12px;font-size:12px;margin-bottom:8px"><i class="fas fa-ranking-star"></i> Lihat Ranking Omzet di Global</button>
 `;
   }
 
@@ -1821,7 +1826,23 @@
           <p style="font-size:9.5px;color:var(--text-ghost);margin-top:3px">FEE</p>
         </div>
       </div>
-      <div class="card page-in s3" style="padding:16px 18px">
+      ${isAdmin() ? `
+      <div class="card page-in s2" style="padding:13px 14px;margin-top:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:9px">
+          <p class="label-xs" style="margin:0">Ranking Omzet User</p>
+          <span class="user-chip">${title}</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:7px">
+          ${Object.values(ft.reduce((acc, t) => {
+            const key = sanitizeUsername(t.user);
+            if (!acc[key]) acc[key] = { user:key, name:t.name || key, omzet:0, transaksi:0 };
+            acc[key].omzet += Number(t.amount || 0);
+            acc[key].transaksi += 1;
+            return acc;
+          }, {})).sort((a,b)=>b.omzet-a.omzet).slice(0,5).map((row, idx) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid var(--border);border-radius:12px;background:var(--surface)"><div><div style="font-size:12px;font-weight:750">#${idx+1} ${escapeHtml(row.name)}</div><div style="font-size:10px;color:var(--text-soft)">${row.transaksi} transaksi</div></div><div style="font-family:var(--num-font);font-size:12px;font-weight:800">Rp ${formatRupiah(row.omzet)}</div></div>`).join('') || `<div style="font-size:12px;color:var(--text-soft);padding:4px 0">Belum ada transaksi untuk ranking.</div>`}
+        </div>
+      </div>` : ''}
+      <div class="card page-in s3" style="padding:13px 14px;margin-top:10px">
         <p class="label-xs">${isAdmin() ? 'Absensi Terbaru' : 'Daftar Hadir'}</p>
         <div style="max-height:180px;overflow-y:auto">
           ${sortByCreatedDesc(fa).slice(0, 30).map(a => `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:12px;gap:10px"><span style="color:var(--text);font-weight:500">${isAdmin() ? `${escapeHtml(a.name || a.user)} · ` : ''}${formatDateLabel(extractDateKey(a))}</span><span style="font-family:var(--num-font);font-size:10px;color:var(--text-soft)">${formatAttendanceTime(a)}</span></div>`).join('') || '<p style="text-align:center;font-size:12px;color:var(--text-ghost);padding:10px 0">Belum ada absen</p>'}
@@ -2680,30 +2701,35 @@
       } else if (page === 'home') {
         nav.style.display = isAdmin() ? 'flex' : 'none'; setActiveNav(page);
         content.innerHTML = isAdmin() ? `
-          <div class="page-pad">
-            <div style="padding:34px 0 18px;display:flex;justify-content:space-between;align-items:center" class="page-in">
+          <div class="page-pad" style="padding-top:8px">
+            <div style="padding:10px 0 8px;display:flex;justify-content:space-between;align-items:center" class="page-in">
               <div>
-                <p style="font-size:11px;color:var(--text-ghost);font-weight:600;margin-bottom:4px">Panel Admin</p>
-                <h2 style="font-size:22px;font-weight:800;letter-spacing:-.02em">Kontrol Semua Data</h2>
+                <p style="font-size:10px;color:var(--text-ghost);font-weight:700;margin-bottom:2px">Panel Admin</p>
+                <h2 style="font-size:18px;font-weight:850;letter-spacing:-.03em">Kontrol Data</h2>
               </div>
               <div class="header-actions">
-                <button class="theme-toggle theme-btn" onclick="toggleTheme()">${themeIcon}</button>
-                <button class="theme-toggle logout-btn" onclick="logout()" title="Logout"><i class="fas fa-power-off"></i></button>
+                <button class="theme-toggle theme-btn" onclick="toggleTheme()" style="width:34px;height:34px;border-radius:10px">${themeIcon}</button>
+                <button class="theme-toggle logout-btn" onclick="logout()" title="Logout" style="width:34px;height:34px;border-radius:10px"><i class="fas fa-power-off"></i></button>
               </div>
             </div>
-            <div class="card page-in s1" style="padding:14px 16px;margin-bottom:12px">
-              <p class="label-xs" style="margin-bottom:8px">Ringkasan Hari Ini</p>
-              <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px" class="page-in s1">
+              <div class="card" style="padding:10px 11px"><p class="label-xs" style="margin-bottom:5px;font-size:9px">Omzet Hari Ini</p><p id="today-income" style="font-family:var(--num-font);font-size:17px;font-weight:850;color:var(--text);line-height:1">Rp 0</p></div>
+              <div id="today-attendance-card" class="card" style="padding:10px 11px;background:var(--red-dim);border-color:rgba(255,107,107,0.2)"><p class="label-xs" id="today-attendance-label" style="margin-bottom:5px;font-size:9px;color:var(--red)">Aktivitas</p><p id="today-attendance-info" style="font-family:var(--num-font);font-size:18px;font-weight:850;color:var(--red);line-height:1">--:--</p></div>
+            </div>
+            <div class="card page-in s1" style="padding:10px 11px;margin-bottom:8px">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
                 <div id="home-status"></div>
-                <div id="loc-info"><span class="loc-chip loc-loading"><i class="fas fa-circle-notch fa-spin" style="font-size:10px"></i> Mencari GPS...</span></div>
+                <div id="loc-info"><span class="loc-chip loc-loading" style="padding:4px 8px;font-size:10px"><i class="fas fa-circle-notch fa-spin" style="font-size:9px"></i> GPS...</span></div>
               </div>
             </div>
-            <div id="admin-closing-panel" class="card page-in s1" style="padding:14px 16px;margin-bottom:12px"></div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px" class="page-in s2">
-              <div class="card" style="padding:14px 15px"><p class="label-xs" style="margin-bottom:8px">Omzet Hari Ini</p><p id="today-income" style="font-family:var(--num-font);font-size:20px;font-weight:700;color:var(--text)">Rp 0</p></div>
-              <div id="today-attendance-card" class="card" style="padding:14px 15px;background:var(--red-dim);border-color:rgba(255,107,107,0.2)"><p class="label-xs" id="today-attendance-label" style="margin-bottom:8px;color:var(--red)">Aktivitas Hari Ini</p><p id="today-attendance-info" style="font-family:var(--num-font);font-size:24px;font-weight:800;color:var(--red);line-height:1">--:--</p></div>
+            <div id="admin-closing-panel" class="card page-in s2" style="padding:10px 11px;margin-bottom:8px"></div>
+            <div class="card page-in s2" style="padding:10px 11px;margin-bottom:8px">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px"><p class="label-xs" style="margin:0;font-size:9px">Bonus Global</p><span id="scope-chip" class="user-chip" style="font-size:10px;padding:3px 7px">${getSelectedUserLabel()}</span></div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:end">
+                <div><p id="total-bonus" style="font-family:var(--num-font);font-size:21px;font-weight:850;color:var(--accent);line-height:1">Rp 0</p><p id="bonus-text" style="font-size:10px;color:var(--text-soft);margin-top:4px;line-height:1.25"></p></div>
+                <div style="text-align:right"><span style="font-size:10px;color:var(--text-soft)">Omzet Bulan</span><strong id="month-omzet" style="display:block;font-size:12px;color:var(--text);margin-top:3px">Rp 0</strong></div>
+              </div>
             </div>
-            <div class="card page-in s3" style="padding:16px 16px;margin-bottom:10px"><div style="display:flex;justify-content:flex-end;margin-bottom:10px"><span id="scope-chip" class="user-chip">${getSelectedUserLabel()}</span></div><p class="label-xs" style="margin-bottom:8px">Estimasi Bonus Global</p><p id="total-bonus" style="font-family:var(--num-font);font-size:28px;font-weight:800;color:var(--accent);margin-bottom:6px">Rp 0</p><p id="bonus-text" style="font-size:11px;color:var(--text-soft)"></p><div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><span style="font-size:11px;color:var(--text-soft)">Omzet bulan ini</span><strong id="month-omzet" style="font-size:12px;color:var(--text)">Rp 0</strong></div></div>
             <div id="admin-dashboard-panels"></div>
           </div>` : `
           <div class="page-pad" style="padding-bottom:98px">
