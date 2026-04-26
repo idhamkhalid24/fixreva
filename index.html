@@ -377,6 +377,7 @@
     if (log.action === 'restore_data') return `Restore data ${d.format || ''}`.trim();
     if (log.action === 'normalize_legacy_data') return `Normalisasi ${d.updated || 0} data`;
     if (log.action === 'closing_day') return `Closing ${d.dateKey || '-'} · bonus Rp ${formatRupiah(d.totalBonus || 0)}`;
+    if (log.action === 'closing_cancel') return `Batal closing ${d.dateKey || '-'}`;
     return log.action || 'audit';
   }
   function formatAuditTime(log) {
@@ -714,6 +715,42 @@
     }
     setLoading(false);
   }
+
+  async function handleCancelClosingToday() {
+    if (!isAdmin()) return showToast('Hanya admin!', true);
+    if (isBusy) return showToast('Tunggu proses selesai', true);
+    const closing = getTodayClosing();
+    if (!closing) return showToast('Belum ada closing hari ini.', true);
+    const dateKey = closing.dateKey || toDateKey(nowDate());
+    const pin = prompt(`Batal closing tanggal ${dateKey}?\nTransaksi staff akan dibuka kembali.\nMasukkan PIN admin:`);
+    if (!pin) return;
+    if (String(pin) !== String(currentUser.pin)) return showToast('PIN salah!', true);
+    if (!confirm('Yakin batal closing hari ini? Bonus closing hari ini tidak akan dihitung.')) return;
+    setLoading(true);
+    try {
+      await setDoc(doc(db, 'closings', dateKey), {
+        closed: false,
+        canceled: true,
+        canceledAt: serverTimestamp(),
+        canceledAtMs: Date.now(),
+        canceledBy: currentUser.username,
+        canceledByName: currentUser.name,
+        cancelNote: 'Closing dibatalkan admin',
+        totalBonus: 0,
+        bonusPerUser: 0,
+        bonusByUser: {}
+      }, { merge: true });
+      await logAudit('closing_cancel', { dateKey });
+      cachedClosings = cachedClosings.map(c => (c.id === dateKey || c.dateKey === dateKey) ? { ...c, closed:false, canceled:true, totalBonus:0, bonusPerUser:0, bonusByUser:{} } : c);
+      showToast('✓ Closing dibatalkan, transaksi dibuka lagi');
+      await refreshCurrentPage();
+    } catch (e) {
+      console.error(e);
+      showToast('Gagal batal closing', true);
+    }
+    setLoading(false);
+  }
+
 
   function getMonthlyAttendancePerformance(username) {
     const month = toMonthKey(nowDate());
@@ -1278,6 +1315,7 @@
         <div style="display:flex;flex-direction:column;gap:8px;flex-shrink:0">
           <button onclick="handleClosingDay()" ${closing?'disabled':''} class="btn ${closing?'btn-glass':'btn-primary'}" style="padding:11px 12px;font-size:12px;border-radius:13px;white-space:nowrap"><i class="fas fa-lock"></i> ${closing?'Sudah Closing':'Closing'}</button>
           <button onclick="handleEditClosingTime()" ${closing?'':'disabled'} class="btn btn-glass" style="padding:9px 11px;font-size:11px;border-radius:12px;white-space:nowrap"><i class="fas fa-pen-to-square"></i> Edit Jam</button>
+          <button onclick="handleCancelClosingToday()" ${closing?'':'disabled'} class="btn btn-danger" style="padding:9px 11px;font-size:11px;border-radius:12px;white-space:nowrap"><i class="fas fa-unlock"></i> Batal</button>
         </div>
       </div>`;
   }
@@ -2562,6 +2600,7 @@
   window.handleTransactionFromModal = handleTransactionFromModal;
   window.handleClosingDay = handleClosingDay;
   window.handleEditClosingTime = handleEditClosingTime;
+  window.handleCancelClosingToday = handleCancelClosingToday;
   window.deleteTransaction = deleteTransaction;
   window.restoreDeletedTransaction = restoreDeletedTransaction;
   window.hardDeleteTransaction = hardDeleteTransaction;
