@@ -44,6 +44,8 @@
     .btn-danger{background:var(--red-dim);border:1px solid rgba(255,107,107,.2)!important;color:var(--red);border-radius:10px}
     .btn-success{background:linear-gradient(135deg, #16a34a, #15803d);color:white;border-radius:12px}
     .theme-toggle{width:38px;height:38px;background:var(--surface);border:1px solid var(--border);border-radius:11px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;color:var(--text-soft);flex-shrink:0}
+    .theme-btn{color:var(--amber);background:var(--amber-dim);border-color:rgba(255,196,107,.22)}
+    .logout-btn{color:var(--red);background:var(--red-dim);border-color:rgba(255,107,107,.22)}
     .header-actions{display:flex;gap:8px;align-items:center}
     .stat-hero{background:linear-gradient(140deg, var(--bg3) 0%, var(--bg2) 100%);border:1px solid var(--border);border-radius:18px;padding:22px 20px;position:relative;overflow:hidden}
     [data-theme="dark"] .stat-hero{background:linear-gradient(140deg,#131d36 0%, #0d1526 100%);border-color:rgba(91,143,255,.15)}
@@ -128,7 +130,7 @@
         </div>
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:14px 15px">
           <p class="label-xs">Nominal</p>
-          <input id="modal-pos-amount" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="" autocomplete="off" class="amount-display" data-numeric="0">
+          <input id="modal-pos-amount" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="0" autocomplete="off" class="amount-display" data-numeric="0">
         </div>
       </div>
       <div id="modal-pos-status" style="margin:14px 0 0"></div>
@@ -445,7 +447,7 @@
   const toggleTheme = () => {
     const next = getTheme() === 'dark' ? 'light' : 'dark';
     applyTheme(next);
-    document.querySelectorAll('.theme-toggle').forEach(b => b.innerHTML = next === 'dark' ? '<i class="fas fa-moon"></i>' : '<i class="fas fa-sun"></i>');
+    document.querySelectorAll('.theme-btn').forEach(b => b.innerHTML = next === 'dark' ? '<i class="fas fa-moon"></i>' : '<i class="fas fa-sun"></i>');
     document.querySelectorAll('input[type="date"].g-input').forEach(el => el.style.colorScheme = next);
   };
   applyTheme(getTheme());
@@ -777,8 +779,9 @@
     input.dataset.bound = 'true';
     input.addEventListener('input', function () {
       const numeric = (this.value || '').replace(/\D/g, '');
-      this.value = numeric;
-      this.setAttribute('data-numeric', numeric || '0');
+      const value = parseInt(numeric || '0', 10);
+      this.setAttribute('data-numeric', String(value));
+      this.value = numeric ? formatRupiah(value) : '';
     });
   }
 
@@ -1995,7 +1998,7 @@
         $('fab-pos').style.display = 'none';
         content.innerHTML = `
           <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 22px;position:relative">
-            <div style="position:absolute;top:22px;right:22px"><button class="theme-toggle" onclick="toggleTheme()">${themeIcon}</button></div>
+            <div style="position:absolute;top:22px;right:22px"><button class="theme-toggle theme-btn" onclick="toggleTheme()">${themeIcon}</button></div>
             <div class="login-brand page-in" style="margin-bottom:18px"><div style="font-size:34px">🧕</div></div>
             <h1 style="font-size:24px;font-weight:800;letter-spacing:-.02em;margin-bottom:4px;text-align:center" class="page-in s1">Rocky Hijab</h1>
             <p style="font-size:13px;color:var(--text-soft);margin-bottom:10px;text-align:center" class="page-in s1">Koleksi Terbaik Untuk Muslimah Hebat</p>
@@ -2017,8 +2020,8 @@
                 <h2 style="font-size:22px;font-weight:800;letter-spacing:-.02em">Kontrol Semua Data</h2>
               </div>
               <div class="header-actions">
-                <button class="theme-toggle" onclick="toggleTheme()">${themeIcon}</button>
-                <button class="theme-toggle" onclick="logout()" title="Keluar"><i class="fas fa-right-from-bracket"></i></button>
+                <button class="theme-toggle theme-btn" onclick="toggleTheme()">${themeIcon}</button>
+                <button class="theme-toggle logout-btn" onclick="logout()" title="Logout"><i class="fas fa-power-off"></i></button>
               </div>
             </div>
             <div class="card page-in s1" style="padding:14px 16px;margin-bottom:12px">
@@ -2039,11 +2042,11 @@
             <div style="padding:18px 0 12px;display:flex;justify-content:space-between;align-items:center;gap:12px" class="page-in">
               <div style="min-width:0">
                 <p style="font-size:11px;color:var(--text-ghost);font-weight:700;margin-bottom:3px">Halo, ${escapeHtml(currentUser.name)}</p>
-                <h2 style="font-size:20px;font-weight:850;letter-spacing:-.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Bismillah Dulu</h2>
+                <h2 style="font-size:20px;font-weight:850;letter-spacing:-.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Dashboard Staff</h2>
               </div>
               <div class="header-actions">
-                <button class="theme-toggle" onclick="toggleTheme()">${themeIcon}</button>
-                <button class="theme-toggle" onclick="logout()" title="Keluar"><i class="fas fa-right-from-bracket"></i></button>
+                <button class="theme-toggle theme-btn" onclick="toggleTheme()">${themeIcon}</button>
+                <button class="theme-toggle logout-btn" onclick="logout()" title="Logout"><i class="fas fa-power-off"></i></button>
               </div>
             </div>
             <div class="card page-in s1" style="padding:13px 14px;margin-bottom:10px">
@@ -2077,8 +2080,8 @@
             <div style="padding:34px 0 18px;display:flex;justify-content:space-between;align-items:center" class="page-in">
               <div><p class="page-title">${isAdmin() ? 'Semua Transaksi' : 'Riwayat'}</p><p class="page-subtitle">${isAdmin() ? 'Pantau transaksi seluruh user' : 'Daftar transaksi yang sudah tersimpan'}</p></div>
               <div style="display:flex;gap:8px">
-                <button class="theme-toggle" onclick="toggleTheme()">${themeIcon}</button>
-                <button class="theme-toggle" onclick="logout()" title="Keluar"><i class="fas fa-right-from-bracket"></i></button>
+                <button class="theme-toggle theme-btn" onclick="toggleTheme()">${themeIcon}</button>
+                <button class="theme-toggle logout-btn" onclick="logout()" title="Logout"><i class="fas fa-power-off"></i></button>
               </div>
             </div>
             <div id="history-list" style="display:flex;flex-direction:column;gap:9px;padding-bottom:22px"></div>
@@ -2092,8 +2095,8 @@
             <div style="padding:34px 0 18px;display:flex;justify-content:space-between;align-items:center" class="page-in">
               <div><p class="page-title">${isAdmin() ? 'Laporan Global' : 'Laporan'}</p><p class="page-subtitle">${isAdmin() ? 'Ringkasan semua user dalam satu panel' : 'Omzet, hadir, bonus, dan ringkasan kerja'}</p></div>
               <div style="display:flex;gap:8px">
-                <button class="theme-toggle" onclick="toggleTheme()">${themeIcon}</button>
-                <button class="theme-toggle" onclick="logout()" title="Keluar"><i class="fas fa-right-from-bracket"></i></button>
+                <button class="theme-toggle theme-btn" onclick="toggleTheme()">${themeIcon}</button>
+                <button class="theme-toggle logout-btn" onclick="logout()" title="Logout"><i class="fas fa-power-off"></i></button>
               </div>
             </div>
             <div class="tab-group page-in" style="margin-bottom:14px">
@@ -2111,7 +2114,7 @@
           <div class="page-pad">
             <div style="padding:50px 0 18px;display:flex;justify-content:space-between;align-items:center" class="page-in">
               <p class="page-title">${isAdmin() ? 'User & Sistem' : 'Sistem'}</p>
-              <div class="header-actions"><button class="theme-toggle" onclick="toggleTheme()">${themeIcon}</button></div>
+              <div class="header-actions"><button class="theme-toggle theme-btn" onclick="toggleTheme()">${themeIcon}</button></div>
             </div>
             <div style="text-align:center;margin-bottom:24px" class="page-in">
               <div style="width:76px;height:76px;border-radius:50%;background:linear-gradient(135deg, var(--accent), #818cf8);display:flex;align-items:center;justify-content:center;font-size:28px;color:white;margin:0 auto">${escapeHtml((currentUser.name||'?').charAt(0).toUpperCase())}</div>
