@@ -739,11 +739,26 @@
   function getMonthlyClosingRecords(month = toMonthKey(nowDate())) {
     return cachedClosings.filter(c => c.closed === true && String(c.monthKey || c.dateKey || '').startsWith(month));
   }
-  function getClosingBonusValue(closing, username = null) {
+  function getClosingBonusPerUserDynamic(closing) {
+    if (!closing || closing.closed !== true) return 0;
+    const delay = Number(closing.delayMinutes || 0);
+    if (!Number.isFinite(delay) || delay <= 0) return 0;
+    return Math.round(delay * getClosingBonusPerMinute());
+  }
+  function getClosingTotalUsers(closing) {
     if (!closing) return 0;
+    const stored = Number(closing.totalUsers || 0);
+    if (Number.isFinite(stored) && stored > 0) return stored;
     const byUser = closing.bonusByUser || {};
-    if (username && username !== 'all') return Number(byUser[sanitizeUsername(username)] || 0);
-    return Object.values(byUser).reduce((a,b)=>a+Number(b||0),0);
+    const countByUser = Object.keys(byUser).filter(k => sanitizeUsername(k) && sanitizeUsername(k) !== 'admin').length;
+    if (countByUser > 0) return countByUser;
+    return getStaffClosingUsers().length;
+  }
+  function getClosingBonusValue(closing, username = null) {
+    if (!closing || closing.closed !== true) return 0;
+    const perUser = getClosingBonusPerUserDynamic(closing);
+    if (username && username !== 'all') return perUser;
+    return perUser * getClosingTotalUsers(closing);
   }
   function getMonthlyClosingBonus(username = null, month = toMonthKey(nowDate())) {
     return getMonthlyClosingRecords(month).reduce((sum, closing) => sum + getClosingBonusValue(closing, username), 0);
@@ -1493,7 +1508,7 @@
 
   function getClosingHistoryRows(limitRows = 14) {
     return [...(cachedClosings || [])]
-      .filter(c => c && (c.dateKey || c.id))
+      .filter(c => c && (c.dateKey || c.id) && c.type !== 'bonus_settings' && c.id !== '__bonus_settings' && c.dateKey !== '__bonus_settings')
       .sort((a, b) => String(b.dateKey || b.id || '').localeCompare(String(a.dateKey || a.id || '')))
       .slice(0, limitRows);
   }
@@ -1540,7 +1555,7 @@
                     <span class="status-pill ${statusClass}" style="font-size:9.5px;padding:4px 8px;white-space:nowrap">${statusText}</span>
                   </div>
                   <div style="font-size:10.5px;color:var(--text-soft);margin-top:4px">Jam closing ${jam} WIB${canceled && cancelJam ? ` · batal ${cancelJam} WIB` : ''}</div>
-                  <div style="font-size:10.5px;color:var(--text-ghost);margin-top:3px">Oleh ${escapeHtml(actor)} · bonus/user Rp ${formatRupiah(c.bonusPerUser || 0)}</div>
+                  <div style="font-size:10.5px;color:var(--text-ghost);margin-top:3px">Oleh ${escapeHtml(actor)} · bonus/user Rp ${formatRupiah(getClosingBonusPerUserDynamic(c))}</div>
                 </div>
               </div>`;
           }).join('') : `<div style="font-size:12px;color:var(--text-soft);padding:12px;border:1px dashed var(--border);border-radius:12px;text-align:center">Belum ada riwayat closing.</div>`}
@@ -1556,7 +1571,7 @@
     const lateMinutes = getClosingDelayMinutes(nowDate());
     const estBonus = lateMinutes * getClosingBonusPerMinute();
     const displayDelay = closing ? (closing.delayMinutes || 0) : lateMinutes;
-    const displayBonus = closing ? (closing.bonusPerUser || 0) : estBonus;
+    const displayBonus = closing ? getClosingBonusPerUserDynamic(closing) : estBonus;
     const closingJam = closing ? getClosingDisplayTime(closing) : '';
     box.innerHTML = `
       <div style="background:linear-gradient(145deg,var(--bg3),var(--bg2));border:1px solid ${closing?'rgba(255,196,107,.24)':'rgba(91,143,255,.18)'};border-radius:18px;padding:14px;box-shadow:0 10px 28px rgba(0,0,0,.14);position:relative;overflow:hidden">
