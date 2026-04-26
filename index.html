@@ -384,6 +384,38 @@
     const ms = getRecordTimeMs(log);
     return ms ? new Date(ms).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }) : '-';
   }
+
+  function renderAdminLogItems(logs, emptyText = 'Belum ada audit log.') {
+    return logs.length ? logs.map(log => `
+      <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 13px;border:1px solid var(--border);border-radius:14px;background:var(--bg2)">
+        <div style="width:38px;height:38px;border-radius:12px;background:var(--accent-dim);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--accent)"><i class="fas fa-clock-rotate-left" style="font-size:13px"></i></div>
+        <div style="min-width:0;flex:1">
+          <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+            <div style="font-size:13px;font-weight:800;line-height:1.35">${escapeHtml(summarizeAuditLog(log))}</div>
+            <span class="badge badge-blue" style="flex-shrink:0">${escapeHtml((log.action || 'log').replaceAll('_',' ').slice(0,14))}</span>
+          </div>
+          <div style="font-size:10.5px;color:var(--text-soft);margin-top:5px">${escapeHtml(log.actorName || log.actor || '-')} · ${escapeHtml(formatAuditTime(log))}</div>
+        </div>
+      </div>`).join('') : `<div class="card" style="padding:18px;text-align:center;color:var(--text-soft);font-size:12px">${emptyText}</div>`;
+  }
+
+  function renderAdminLogsPage() {
+    const box = $('admin-logs-list');
+    if (!box) return;
+    const logs = getFilteredAuditLogs();
+    const hasMoreLogs = cachedAuditLogs.length > logs.length;
+    box.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px">
+        <div>
+          <p class="label-xs" style="margin:0">Audit Log</p>
+          <p style="font-size:11px;color:var(--text-soft);margin-top:4px">Riwayat aktivitas penting admin dan sistem.</p>
+        </div>
+        <span class="status-pill status-ok">${cachedAuditLogs.length} log</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:9px">${renderAdminLogItems(logs)}</div>
+      ${hasMoreLogs ? `<button onclick="increaseAuditLogLimit()" class="btn btn-glass" style="width:100%;margin-top:12px;padding:12px;font-size:12px">Muat 10 log lagi</button>` : ''}
+    `;
+  }
   function getAdminDashboardData() {
     const tx = getVisibleTransactions();
     const att = getVisibleAttendance();
@@ -408,7 +440,6 @@
     const board = $('admin-dashboard-panels');
     if (!board) return;
     const stats = getAdminDashboardData();
-    const recent = sortByCreatedDesc(cachedAuditLogs).slice(0, 6);
     board.innerHTML = `
       <div class="summary-grid page-in s3">
         <div class="card" style="padding:14px 15px"><p class="label-xs" style="margin-bottom:8px">User Aktif Hari Ini</p><p style="font-family:var(--num-font);font-size:22px;font-weight:800;color:var(--green)">${stats.activeToday}</p></div>
@@ -420,28 +451,7 @@
           ${stats.leaderboard.length ? stats.leaderboard.map((row, idx) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface)"><div><div style="font-size:12px;font-weight:700">#${idx+1} ${escapeHtml(row.name)}</div><div style="font-size:10px;color:var(--text-soft)">${row.transaksi} transaksi</div></div><div style="font-family:var(--num-font);font-size:12px;font-weight:700">Rp ${formatRupiah(row.omzet)}</div></div>`).join('') : `<div style="font-size:12px;color:var(--text-soft)">Belum ada data transaksi.</div>`}
         </div>
       </div>
-      <div class="card page-in s4" style="padding:16px 16px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px">
-          <div>
-            <p class="label-xs" style="margin:0">Aktivitas Admin Terbaru</p>
-            <p style="font-size:11px;color:var(--text-soft);margin-top:4px">Ringkas, fokus ke aksi penting terakhir.</p>
-          </div>
-          <button onclick="router.navigate('settings')" class="btn btn-glass" style="padding:8px 10px;font-size:11px;white-space:nowrap">Lihat Semua</button>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:8px">
-          ${recent.length ? recent.map(log => `
-            <div style="display:flex;align-items:flex-start;gap:10px;padding:11px 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface)">
-              <div style="width:34px;height:34px;border-radius:10px;background:var(--accent-dim);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--accent)"><i class="fas fa-clock-rotate-left" style="font-size:12px"></i></div>
-              <div style="min-width:0;flex:1">
-                <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
-                  <div style="font-size:12px;font-weight:700;line-height:1.35">${escapeHtml(summarizeAuditLog(log))}</div>
-                  <span class="badge badge-blue" style="flex-shrink:0">${escapeHtml((log.action || 'log').replaceAll('_',' ').slice(0,14))}</span>
-                </div>
-                <div style="font-size:10px;color:var(--text-soft);margin-top:4px">${escapeHtml(log.actorName || log.actor || '-')} · ${escapeHtml(formatAuditTime(log))}</div>
-              </div>
-            </div>`).join('') : `<div style="font-size:12px;color:var(--text-soft)">Belum ada audit log.</div>`}
-        </div>
-      </div>`;
+`;
   }
 
 
@@ -949,6 +959,7 @@
     else if (currentPage === 'history') await renderHistory();
     else if (currentPage === 'report') await renderReport();
     else if (currentPage === 'settings') await renderSettingsSummary();
+    else if (currentPage === 'adminLogs') renderAdminLogsPage();
   }
 
   function hasClockedInToday() {
@@ -2388,22 +2399,14 @@
       </div>
 
       <div class="card" style="padding:14px 16px;margin-top:12px">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px">
-          <p class="label-xs" style="margin:0">Audit Log</p>
-          <span class="status-pill status-ok">${cachedAuditLogs.length} log</span>
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="width:40px;height:40px;border-radius:13px;background:var(--accent-dim);display:flex;align-items:center;justify-content:center;color:var(--accent);flex-shrink:0"><i class="fas fa-clock-rotate-left"></i></div>
+          <div style="min-width:0;flex:1">
+            <div style="font-size:13px;font-weight:800">Log Aktivitas Admin</div>
+            <div style="font-size:11px;color:var(--text-soft);margin-top:3px">${cachedAuditLogs.length} log tersimpan · halaman terpisah</div>
+          </div>
+          <button onclick="router.navigate('adminLogs')" class="btn btn-glass" style="padding:9px 11px;font-size:11.5px;white-space:nowrap">Buka</button>
         </div>
-        <div style="display:flex;flex-direction:column;gap:8px;max-height:260px;overflow-y:auto">
-          ${filteredLogs.length ? filteredLogs.map(log => `
-            <div style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;background:var(--surface)">
-              <div style="width:30px;height:30px;border-radius:9px;background:var(--accent-dim);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--accent)"><i class="fas fa-clock-rotate-left" style="font-size:11px"></i></div>
-              <div style="min-width:0;flex:1">
-                <div style="font-size:12px;font-weight:700;line-height:1.35">${escapeHtml(summarizeAuditLog(log))}</div>
-                <div style="font-size:10px;color:var(--text-soft);margin-top:3px">${escapeHtml(log.actorName || log.actor || '-')} · ${escapeHtml(formatAuditTime(log))}</div>
-              </div>
-            </div>`).join('') : `<div style="font-size:12px;color:var(--text-soft)">Belum ada audit log.</div>`}
-        </div>
-        ${hasMoreLogs ? `<button onclick="increaseAuditLogLimit()" class="btn btn-glass" style="width:100%;margin-top:10px;padding:11px;font-size:12px">Muat 10 log lagi</button>` : ''}
-        <p style="font-size:11px;color:var(--text-soft);margin-top:10px">Log dibuat ringkas dan dibatasi tampilannya supaya tidak membebani UI. Event yang dicatat hanya aksi penting admin/sistem.</p>
       </div>
 
       <div class="card" style="padding:14px 16px;margin-top:12px">
@@ -2453,7 +2456,7 @@
 
   function setActiveNav(page) {
     ['home','history','report','settings'].forEach(p => {
-      const btn = $('nav-' + p); if (btn) btn.classList.toggle('active', p === page);
+      const btn = $('nav-' + p); if (btn) btn.classList.toggle('active', p === page || (page === 'adminLogs' && p === 'settings'));
     });
     const fab = $('fab-pos');
     if (!fab) return;
@@ -2585,6 +2588,24 @@
             <div id="report-view" style="display:flex;flex-direction:column;gap:10px;padding-bottom:18px"></div>
           </div>`;
         renderReport();
+      } else if (page === 'adminLogs') {
+        if (!isAdmin()) return router.navigate('home');
+        nav.style.display = 'flex'; setActiveNav(page);
+        content.innerHTML = `
+          <div class="page-pad">
+            <div style="padding:50px 0 18px;display:flex;justify-content:space-between;align-items:center;gap:10px" class="page-in">
+              <div style="display:flex;align-items:center;gap:10px;min-width:0">
+                <button onclick="router.navigate('settings')" class="theme-toggle" style="width:38px;height:38px"><i class="fas fa-arrow-left"></i></button>
+                <div style="min-width:0">
+                  <p class="page-title" style="font-size:21px">Log Aktivitas Admin</p>
+                  <p class="page-subtitle">Halaman khusus audit log</p>
+                </div>
+              </div>
+              <div class="header-actions"><button class="theme-toggle theme-btn" onclick="toggleTheme()">${themeIcon}</button></div>
+            </div>
+            <div id="admin-logs-list" class="page-in s1" style="padding-bottom:18px"></div>
+          </div>`;
+        renderAdminLogsPage();
       } else if (page === 'settings') {
         if (!isAdmin()) return router.navigate('home');
         nav.style.display = 'flex'; setActiveNav(page);
@@ -2626,6 +2647,12 @@
                 <span class="setting-label">Keluar Aplikasi</span>
                 <i class="fas fa-chevron-right setting-arrow"></i>
               </button>
+              ${isAdmin() ? `<button onclick="router.navigate('adminLogs')" class="setting-row">
+                <div class="setting-ico" style="background:var(--accent-dim)"><i class="fas fa-clock-rotate-left" style="color:var(--accent)"></i></div>
+                <span class="setting-label">Log Aktivitas Admin</span>
+                <span style="font-size:11px;font-weight:700;color:var(--text-soft);margin-right:8px">${cachedAuditLogs.length} log</span>
+                <i class="fas fa-chevron-right setting-arrow"></i>
+              </button>` : ''}
               ${isAdmin() ? `<button onclick="toggleAdminMoreMenu()" class="setting-row">
                 <div class="setting-ico" style="background:var(--accent-dim)"><i class="fas fa-layer-group" style="color:var(--accent)"></i></div>
                 <span class="setting-label">Menu Lainnya</span>
@@ -2676,6 +2703,7 @@
     setLoading(false);
   }
 
+  window.increaseAuditLogLimit = increaseAuditLogLimit;
   window.toggleTheme = toggleTheme;
   window.login = login;
   window.toggleAdminMoreMenu = toggleAdminMoreMenu;
