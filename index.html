@@ -105,6 +105,12 @@
     .summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
     .page-in{animation:pageIn .22s ease both}.s1{animation-delay:.04s}.s2{animation-delay:.08s}.s3{animation-delay:.12s}.s4{animation-delay:.16s}
     @keyframes pageIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+
+    .admin-menu-card{overflow:hidden}
+    #admin-more-menu>.admin-menu-card:not(.open)>*:not(:first-child){display:none!important}
+    .admin-menu-card-head{cursor:pointer;transition:background .14s ease;border-radius:12px}
+    .admin-menu-card-head:active{transform:scale(.995)}
+    .admin-menu-toggle-chip{display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border-radius:999px;background:var(--surface);border:1px solid var(--border);font-size:10px;font-weight:800;color:var(--text-soft);white-space:nowrap}
   </style>
 </head>
 <body>
@@ -183,7 +189,7 @@
   let selectedRestoreProFile = null;
   let cachedTransactions = [], cachedAttendance = [], cachedUsers = [], cachedAuditLogs = [];
   let unsubTransactions = null, unsubAttendance = null, unsubUsers = null, unsubAuditLogs = null, rangeStartDate = null, rangeEndDate = null;
-  let attendanceReady = false, isBusy = false, auditLogLimit = 10, recycleBinLimit = 20, recycleSearch = '', recycleUserFilter = 'all', historyDisplayLimit = 30, inactiveUserLimit = 30;
+  let attendanceReady = false, isBusy = false, auditLogLimit = 10, recycleBinLimit = 20, recycleSearch = '', recycleUserFilter = 'all', historyDisplayLimit = 30, inactiveUserLimit = 30, adminAttendancePerfExpanded = false, adminMoreMenuExpanded = false, adminMoreOpenCards = {};
   const TX_SYNC_LIMIT_ADMIN = 800, TX_SYNC_LIMIT_STAFF = 400, ATT_SYNC_LIMIT_ADMIN = 800, ATT_SYNC_LIMIT_STAFF = 400, AUDIT_SYNC_LIMIT = 40, HISTORY_PAGE_STEP = 30, INACTIVE_USER_STEP = 30;
 
   const $ = (id) => document.getElementById(id);
@@ -569,6 +575,74 @@
     // Batas: 07:20 = 420 menit. Lewat 07:20 (> 420) = perlu ditingkatkan
     const isGood = avgMinutes <= 420;
     return { avgLabel, isGood, count: validCount };
+  }
+
+  function getAdminAttendancePerformanceRows() {
+    const month = toMonthKey(nowDate());
+    const staffUsers = activeUsers().filter(u => String(u.role || 'staff') !== 'admin');
+    return staffUsers.map(u => {
+      const perf = getMonthlyAttendancePerformance(u.username);
+      return {
+        username: sanitizeUsername(u.username),
+        name: u.name || u.username,
+        month,
+        avgLabel: perf ? perf.avgLabel : '--:--',
+        count: perf ? perf.count : 0,
+        isGood: perf ? perf.isGood : false,
+        hasData: !!perf
+      };
+    }).sort((a, b) => {
+      if (a.hasData !== b.hasData) return a.hasData ? -1 : 1;
+      if (a.isGood !== b.isGood) return a.isGood ? -1 : 1;
+      return String(a.name || '').localeCompare(String(b.name || ''));
+    });
+  }
+
+  function toggleAdminAttendancePerformance() {
+    adminAttendancePerfExpanded = !adminAttendancePerfExpanded;
+    renderSettingsSummary();
+  }
+
+  function toggleAdminMoreMenu() {
+    adminMoreMenuExpanded = !adminMoreMenuExpanded;
+    renderSettingsSummary();
+  }
+
+  function toggleAdminMoreCard(index) {
+    adminMoreOpenCards[index] = !adminMoreOpenCards[index];
+    renderSettingsSummary();
+  }
+
+  function enhanceAdminMoreMenuCards() {
+    const menu = $('admin-more-menu');
+    if (!menu) return;
+    Array.from(menu.children).forEach((card, index) => {
+      if (!card.classList || !card.classList.contains('card')) return;
+      card.classList.add('admin-menu-card');
+      if (index === 0) {
+        card.classList.add('open');
+        return;
+      }
+      const header = card.firstElementChild;
+      const isOpen = !!adminMoreOpenCards[index];
+      card.classList.toggle('open', isOpen);
+      if (!header) return;
+      header.classList.add('admin-menu-card-head');
+      header.onclick = (event) => {
+        if (event.target.closest('button,input,select,textarea,a')) return;
+        toggleAdminMoreCard(index);
+      };
+      const rightSide = header.lastElementChild || header;
+      const chip = document.createElement('span');
+      chip.className = 'admin-menu-toggle-chip';
+      chip.innerHTML = `${isOpen ? '<i class="fas fa-chevron-up"></i> Ringkas' : '<i class="fas fa-chevron-down"></i> Selengkapnya'}`;
+      chip.onclick = (event) => { event.stopPropagation(); toggleAdminMoreCard(index); };
+      if (rightSide && rightSide !== header && rightSide.style) {
+        rightSide.appendChild(chip);
+      } else {
+        header.appendChild(chip);
+      }
+    });
   }
 
   async function seedDemoUserIfMissing() {
@@ -1888,8 +1962,48 @@
     const hasMoreLogs = cachedAuditLogs.length > filteredLogs.length;
     const visibleDeletedTransactions = filteredDeletedTransactions.slice(0, recycleBinLimit);
     const hasMoreDeleted = filteredDeletedTransactions.length > visibleDeletedTransactions.length;
+    const attendancePerfRows = isAdmin() ? getAdminAttendancePerformanceRows() : [];
+    const goodPerfCount = attendancePerfRows.filter(r => r.hasData && r.isGood).length;
+    const warnPerfCount = attendancePerfRows.filter(r => r.hasData && !r.isGood).length;
 
-    const adminBlocks = isAdmin() ? `
+    const adminBlocks = (isAdmin() && adminMoreMenuExpanded) ? `
+      <div class="card" style="padding:14px 16px;margin-top:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:${adminAttendancePerfExpanded ? '10px' : '0'};flex-wrap:wrap">
+          <div>
+            <p class="label-xs" style="margin:0">Performa Absen Staff</p>
+            <p style="font-size:11px;color:var(--text-soft);margin-top:4px">Batas performa baik: rata-rata absen ≤ 07:20 WIB bulan ${toMonthKey(nowDate())}</p>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;align-items:center">
+            <span class="status-pill status-ok">${goodPerfCount} baik</span>
+            <span class="status-pill status-warn">${warnPerfCount} perlu ditingkatkan</span>
+            <button onclick="toggleAdminAttendancePerformance()" class="btn btn-glass" style="padding:7px 10px;font-size:11px;border-radius:10px;white-space:nowrap">
+              ${adminAttendancePerfExpanded ? '<i class="fas fa-chevron-up"></i> Ringkas' : '<i class="fas fa-chevron-down"></i> Selengkapnya'}
+            </button>
+          </div>
+        </div>
+        ${adminAttendancePerfExpanded ? `
+          <div style="display:flex;flex-direction:column;gap:8px;max-height:320px;overflow-y:auto">
+            ${attendancePerfRows.length ? attendancePerfRows.map(row => {
+              const color = !row.hasData ? 'var(--text-ghost)' : (row.isGood ? 'var(--green)' : 'var(--red)');
+              const bgColor = !row.hasData ? 'var(--surface)' : (row.isGood ? 'var(--green-dim)' : 'var(--red-dim)');
+              const borderColor = !row.hasData ? 'var(--border)' : (row.isGood ? 'rgba(82,216,158,0.2)' : 'rgba(255,107,107,0.2)');
+              const icon = !row.hasData ? 'fa-circle-minus' : (row.isGood ? 'fa-circle-check' : 'fa-circle-exclamation');
+              const label = !row.hasData ? 'Belum Ada Data' : (row.isGood ? 'Performa Baik' : 'Perlu Ditingkatkan');
+              return `
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border:1px solid ${borderColor};border-radius:13px;background:${bgColor}">
+                  <div style="min-width:0;flex:1">
+                    <div style="font-size:12.5px;font-weight:800;color:var(--text);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(row.name)} <span style="font-size:10px;color:var(--text-soft);font-weight:700">@${escapeHtml(row.username)}</span></div>
+                    <div style="display:flex;align-items:center;gap:6px;margin-top:5px;color:${color};font-size:10.5px;font-weight:800"><i class="fas ${icon}" style="font-size:10px"></i>${label} · ${row.count} hari hadir</div>
+                  </div>
+                  <div style="text-align:center;min-width:70px;flex-shrink:0">
+                    <div style="font-family:var(--num-font);font-size:16px;font-weight:850;color:${color};line-height:1">${row.avgLabel}</div>
+                    <div style="font-size:8px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:${color};margin-top:3px;opacity:.82">Rata-rata</div>
+                  </div>
+                </div>`;
+            }).join('') : `<div style="font-size:12px;color:var(--text-soft)">Belum ada staff aktif.</div>`}
+          </div>` : ''}
+      </div>
+
       <div class="card" style="padding:14px 16px;margin-top:12px">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px">
           <p class="label-xs" style="margin:0">Manajemen User</p>
@@ -2021,8 +2135,9 @@
         <div style="display:flex;justify-content:space-between;font-size:12px"><span>Transaksi Aktif</span><strong>${getVisibleTransactions().length}</strong></div>
         <div style="display:flex;justify-content:space-between;font-size:12px"><span>Recycle Bin</span><strong>${deletedTransactions.length}</strong></div>
       </div>
-      ${adminBlocks}
     `;
+    const moreMenu = $('admin-more-menu');
+    if (moreMenu) { moreMenu.innerHTML = adminBlocks; enhanceAdminMoreMenuCards(); }
     if (isAdmin() && $('recycle-user-filter')) $('recycle-user-filter').value = recycleUserFilter;
     updateRestoreProStatus();
   }
@@ -2219,6 +2334,14 @@
                 <span class="setting-label">Keluar Aplikasi</span>
                 <i class="fas fa-chevron-right setting-arrow"></i>
               </button>
+              ${isAdmin() ? `
+              <button onclick="toggleAdminMoreMenu()" class="setting-row">
+                <div class="setting-ico" style="background:var(--accent-dim)"><i class="fas fa-layer-group" style="color:var(--accent)"></i></div>
+                <span class="setting-label">Menu Lainnya</span>
+                <span style="font-size:11px;font-weight:700;color:var(--text-soft);margin-right:8px">${adminMoreMenuExpanded ? 'Tutup' : 'Selengkapnya'}</span>
+                <i class="fas ${adminMoreMenuExpanded ? 'fa-chevron-up' : 'fa-chevron-down'} setting-arrow"></i>
+              </button>
+              <div id="admin-more-menu" style="display:flex;flex-direction:column;gap:0"></div>` : ''}
               <div class="card" style="padding:14px 16px;margin-top:8px">
                 <p class="label-xs">Info Firebase</p>
                 <div id="settings-summary"></div>
@@ -2281,6 +2404,9 @@
   window.increaseRecycleBinLimit = increaseRecycleBinLimit;
   window.increaseHistoryDisplayLimit = increaseHistoryDisplayLimit;
   window.increaseInactiveUserLimit = increaseInactiveUserLimit;
+  window.toggleAdminAttendancePerformance = toggleAdminAttendancePerformance;
+  window.toggleAdminMoreMenu = toggleAdminMoreMenu;
+  window.toggleAdminMoreCard = toggleAdminMoreCard;
   window.filterHistoryByDateRange = filterHistoryByDateRange;
   window.resetHistoryFilter = resetHistoryFilter;
   window.setHistoryFilter = setHistoryFilter;
