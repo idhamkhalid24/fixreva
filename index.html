@@ -1012,14 +1012,13 @@
     const today = toDateKey(nowDate());
     const items = sortByCreatedDesc(getVisibleTransactions().filter(t => getTransactionDateKey(t) === today));
     const total = items.reduce((a,b)=>a+Number(b.amount||0),0);
-    const staffTodayLimit = 6;
     box.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
         <div><p class="label-xs" style="margin-bottom:2px">Riwayat Hari Ini</p><p style="font-size:11px;color:var(--text-soft)">${items.length} transaksi · Rp ${formatRupiah(total)}</p></div>
         <button onclick="openTransactionModal()" class="btn btn-primary" style="padding:9px 11px;font-size:11.5px;border-radius:12px"><i class="fas fa-plus"></i> Transaksi</button>
       </div>
       <div style="display:flex;flex-direction:column;gap:8px">
-        ${items.length ? items.slice(0, staffTodayLimit).map(t => `
+        ${items.length ? items.slice(0, 8).map(t => `
           <div class="trx-card" style="padding:10px 12px;border-radius:13px">
             <div style="min-width:0;flex:1">
               <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
@@ -1032,11 +1031,7 @@
               </div>
             </div>
           </div>`).join('') : `<div style="padding:18px 10px;text-align:center;border:1px dashed var(--border);border-radius:14px;color:var(--text-soft);font-size:12px">Belum ada transaksi hari ini.</div>`}
-      </div>
-      ${items.length > staffTodayLimit ? `
-        <div style="margin-top:10px;text-align:center">
-          <button onclick="router.navigate('history')" class="btn btn-glass" style="padding:10px 14px;font-size:11.5px;border-radius:12px;width:100%">Lihat Selengkapnya</button>
-        </div>` : ``}`;
+      </div>`;
   }
 
   async function updateHomeStats() {
