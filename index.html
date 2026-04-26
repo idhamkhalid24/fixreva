@@ -1573,48 +1573,47 @@
     const displayDelay = closing ? (closing.delayMinutes || 0) : lateMinutes;
     const displayBonus = closing ? getClosingBonusPerUserDynamic(closing) : estBonus;
     const closingJam = closing ? getClosingDisplayTime(closing) : '';
+    const statusText = closing ? 'Sudah Closing' : 'Masih Terbuka';
+    const mainTitle = closing ? `Closing ${closingJam || '--:--'} WIB` : 'Belum Closing Hari Ini';
+    const mainDesc = closing ? 'Staff terkunci transaksi sampai ganti tanggal.' : `Deadline ${formatClosingDeadline()} · bonus mengikuti kontrol admin.`;
     box.innerHTML = `
       <div style="background:linear-gradient(145deg,var(--bg3),var(--bg2));border:1px solid ${closing?'rgba(255,196,107,.24)':'rgba(91,143,255,.18)'};border-radius:18px;padding:14px;box-shadow:0 10px 28px rgba(0,0,0,.14);position:relative;overflow:hidden">
-        <div style="position:absolute;top:-38px;right:-42px;width:120px;height:120px;background:radial-gradient(circle,${closing?'rgba(255,196,107,.16)':'rgba(91,143,255,.16)'} 0%,transparent 70%);pointer-events:none"></div>
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;position:relative;z-index:1;margin-bottom:12px">
+        <div style="position:absolute;top:-44px;right:-50px;width:132px;height:132px;background:radial-gradient(circle,${closing?'rgba(255,196,107,.16)':'rgba(91,143,255,.16)'} 0%,transparent 70%);pointer-events:none"></div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;position:relative;z-index:1;margin-bottom:12px">
           <div style="min-width:0;flex:1">
-            <p class="label-xs" style="margin-bottom:5px">Closing Transaksi</p>
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-              <span class="status-pill ${closing?'status-warn':'status-ok'}" style="font-size:10px;padding:5px 10px">
-                <i class="fas ${closing?'fa-lock':'fa-lock-open'}"></i> ${closing?'Sudah Closing':'Masih Terbuka'}
-              </span>
-              <span class="user-chip" style="font-size:10.5px"><i class="fas fa-clock"></i> Deadline ${formatClosingDeadline()}</span>
-            </div>
-            <div style="font-size:11.5px;color:var(--text-soft);margin-top:8px;line-height:1.45">
-              ${closing ? `Terkunci jam <b style="color:var(--amber);font-family:var(--num-font)">${closingJam || '--:--'} WIB</b>. Staff otomatis bisa transaksi lagi besok.` : `Belum closing hari ini. Estimasi bonus mengikuti nominal kontrol bonus admin.`}
-            </div>
+            <p class="label-xs" style="margin:0 0 6px">Closing Transaksi</p>
+            <div style="font-size:16px;font-weight:900;letter-spacing:-.02em;line-height:1.2">${mainTitle}</div>
+            <div style="font-size:11px;color:var(--text-soft);margin-top:5px;line-height:1.35">${mainDesc}</div>
           </div>
-          <div style="width:42px;height:42px;border-radius:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:${closing?'var(--amber-dim)':'var(--accent-dim)'};color:${closing?'var(--amber)':'var(--accent)'};border:1px solid ${closing?'rgba(255,196,107,.22)':'rgba(91,143,255,.22)'}">
-            <i class="fas ${closing?'fa-store-slash':'fa-store'}" style="font-size:15px"></i>
+          <span class="status-pill ${closing?'status-warn':'status-ok'}" style="font-size:10px;padding:6px 10px;white-space:nowrap">
+            <i class="fas ${closing?'fa-lock':'fa-lock-open'}"></i> ${statusText}
+          </span>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;position:relative;z-index:1;margin-bottom:11px">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:10px 11px">
+            <div style="font-size:9px;color:var(--text-ghost);font-weight:900;text-transform:uppercase;margin-bottom:4px">Telat</div>
+            <div style="font-family:var(--num-font);font-size:18px;font-weight:900;color:${displayDelay?'var(--amber)':'var(--green)'}">${displayDelay} menit</div>
+          </div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:10px 11px">
+            <div style="font-size:9px;color:var(--text-ghost);font-weight:900;text-transform:uppercase;margin-bottom:4px">Bonus/User</div>
+            <div style="font-family:var(--num-font);font-size:18px;font-weight:900;color:var(--accent)">Rp ${formatRupiah(displayBonus)}</div>
           </div>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;position:relative;z-index:1;margin-bottom:10px">
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:11px 12px">
-            <div style="font-size:9.5px;color:var(--text-ghost);font-weight:800;text-transform:uppercase;margin-bottom:4px">Lewat Deadline</div>
-            <div style="font-family:var(--num-font);font-size:20px;font-weight:900;color:${displayDelay?'var(--amber)':'var(--green)'}">${displayDelay} menit</div>
+        <div style="display:flex;flex-direction:column;gap:8px;position:relative;z-index:1">
+          <button onclick="handleClosingDay()" ${closing?'disabled':''} class="btn ${closing?'btn-glass':'btn-primary'}" style="width:100%;min-height:44px;padding:11px 12px;font-size:13px;border-radius:14px;font-weight:900">
+            <i class="fas fa-lock"></i> ${closing?'Sudah Diclosing':'Closing Sekarang'}
+          </button>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <button onclick="handleEditClosingTime()" ${closing?'':'disabled'} class="btn btn-glass" style="min-height:40px;padding:10px 8px;font-size:12px;border-radius:13px">
+              <i class="fas fa-pen-to-square"></i> Edit Jam
+            </button>
+            <button onclick="handleCancelClosingToday()" ${closing?'':'disabled'} class="btn btn-danger" style="min-height:40px;padding:10px 8px;font-size:12px;border-radius:13px">
+              <i class="fas fa-unlock"></i> Batal Closing
+            </button>
           </div>
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:11px 12px">
-            <div style="font-size:9.5px;color:var(--text-ghost);font-weight:800;text-transform:uppercase;margin-bottom:4px">Bonus/User</div>
-            <div style="font-family:var(--num-font);font-size:20px;font-weight:900;color:var(--accent)">Rp ${formatRupiah(displayBonus)}</div>
-          </div>
-        </div>
-
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;position:relative;z-index:1">
-          <button onclick="handleClosingDay()" ${closing?'disabled':''} class="btn ${closing?'btn-glass':'btn-primary'}" style="height:46px;padding:0 8px;font-size:11px;border-radius:14px;flex-direction:column;gap:3px;line-height:1.1">
-            <i class="fas fa-lock" style="font-size:13px"></i><span>${closing?'Closed':'Closing'}</span>
-          </button>
-          <button onclick="handleEditClosingTime()" ${closing?'':'disabled'} class="btn btn-glass" style="height:46px;padding:0 8px;font-size:11px;border-radius:14px;flex-direction:column;gap:3px;line-height:1.1">
-            <i class="fas fa-pen-to-square" style="font-size:13px"></i><span>Edit Jam</span>
-          </button>
-          <button onclick="handleCancelClosingToday()" ${closing?'':'disabled'} class="btn btn-danger" style="height:46px;padding:0 8px;font-size:11px;border-radius:14px;flex-direction:column;gap:3px;line-height:1.1">
-            <i class="fas fa-unlock" style="font-size:13px"></i><span>Batal</span>
-          </button>
         </div>
       </div>`;
   }
@@ -2737,7 +2736,7 @@
               <div class="card" style="padding:13px 13px"><p class="label-xs" style="margin-bottom:8px">Pendapatan Bulanan</p><p id="month-omzet" style="font-family:var(--num-font);font-size:17px;font-weight:800;color:var(--green)">Rp 0</p></div>
             </div>
             <div class="bonus-card page-in s3" style="padding:14px 15px;margin-bottom:9px">
-              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><div><p class="label-xs" style="margin-bottom:6px;color:var(--amber)">Total Bonus Bulanan</p><p id="total-bonus" style="font-family:var(--num-font);font-size:23px;font-weight:850;color:var(--amber);line-height:1">Rp 0</p><p id="bonus-text" style="font-size:10.5px;color:var(--text-soft);margin-top:5px"></p></div><span id="scope-chip" class="user-chip">Data Saya</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><div><p class="label-xs" style="margin-bottom:6px;color:var(--amber)">Total Bonus Bulanan + Bonus Closing</p><p id="total-bonus" style="font-family:var(--num-font);font-size:23px;font-weight:850;color:var(--amber);line-height:1">Rp 0</p><p id="bonus-text" style="font-size:10.5px;color:var(--text-soft);margin-top:5px"></p></div><span id="scope-chip" class="user-chip">Data Saya</span></div>
               <div id="staff-closing-status" style="margin-top:10px"></div>
             </div>
             <div id="staff-today-history" class="card page-in s4" style="padding:14px 14px"></div>
