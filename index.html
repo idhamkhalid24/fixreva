@@ -543,6 +543,34 @@
   function calculateDistance(la1,lo1,la2,lo2){const R=6371e3,dL=(la2-la1)*Math.PI/180,dO=(lo2-lo1)*Math.PI/180,a=Math.sin(dL/2)**2+Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dO/2)**2;return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));}
   function calculateBonus(o) { return Math.round(Number(o || 0) * 0.015); }
 
+  function getMonthlyAttendancePerformance(username) {
+    const month = toMonthKey(nowDate());
+    const me = sanitizeUsername(username || '');
+    const monthlyAtt = getVisibleAttendance().filter(a =>
+      String(extractDateKey(a) || '').startsWith(month) &&
+      sanitizeUsername(a.user) === me
+    );
+    if (!monthlyAtt.length) return null;
+    // Hitung rata-rata jam absen (dalam menit dari tengah malam WIB)
+    let totalMinutes = 0;
+    let validCount = 0;
+    for (const rec of monthlyAtt) {
+      const ms = getRecordTimeMs(rec);
+      if (!ms) continue;
+      const wib = getWIBDate(new Date(ms));
+      totalMinutes += wib.hour * 60 + wib.minute;
+      validCount++;
+    }
+    if (!validCount) return null;
+    const avgMinutes = totalMinutes / validCount;
+    const avgHour = Math.floor(avgMinutes / 60);
+    const avgMin = Math.floor(avgMinutes % 60);
+    const avgLabel = `${String(avgHour).padStart(2,'0')}:${String(avgMin).padStart(2,'0')}`;
+    // Batas: 07:00 = 420 menit. Lewat 07:00 (> 420) = perlu ditingkatkan
+    const isGood = avgMinutes <= 420;
+    return { avgLabel, isGood, count: validCount };
+  }
+
   async function seedDemoUserIfMissing() {
     const ref = doc(db, 'users', 'aji');
     const snap = await getDoc(ref);
@@ -1065,7 +1093,49 @@
       }
     }
     if ($('scope-chip')) $('scope-chip').textContent = isAdmin() ? getSelectedUserLabel() : 'Data Saya';
-    if (!isAdmin()) renderStaffTodayHistory();
+    if (!isAdmin()) {
+      renderStaffTodayHistory();
+      // Render card rata-rata absen bulanan
+      const perfCard = $('attendance-performance-card');
+      if (perfCard) {
+        const month = toMonthKey(nowDate());
+        const perf = getMonthlyAttendancePerformance(currentUser.username);
+        if (!perf) {
+          perfCard.innerHTML = `
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+              <div>
+                <p class="label-xs" style="margin-bottom:4px">Rata-rata Jam Absen</p>
+                <p style="font-size:11px;color:var(--text-ghost)">Bulan ${month} · belum ada data</p>
+              </div>
+              <div style="text-align:center;border:1px solid var(--border);border-radius:11px;padding:8px 12px;background:var(--surface)">
+                <p style="font-family:var(--num-font);font-size:17px;font-weight:800;color:var(--text-ghost);line-height:1">--:--</p>
+                <p style="font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-ghost);margin-top:3px">Belum Ada Data</p>
+              </div>
+            </div>`;
+        } else {
+          const color = perf.isGood ? 'var(--green)' : 'var(--amber)';
+          const bgColor = perf.isGood ? 'var(--green-dim)' : 'var(--amber-dim)';
+          const borderColor = perf.isGood ? 'rgba(82,216,158,0.2)' : 'rgba(255,196,107,0.2)';
+          const icon = perf.isGood ? 'fa-circle-check' : 'fa-circle-exclamation';
+          const label = perf.isGood ? 'Performa Baik ✓' : 'Perlu Ditingkatkan';
+          perfCard.innerHTML = `
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+              <div style="flex:1;min-width:0">
+                <p class="label-xs" style="margin-bottom:4px">Rata-rata Jam Absen</p>
+                <div style="display:flex;align-items:center;gap:6px;margin-top:2px">
+                  <i class="fas ${icon}" style="color:${color};font-size:11px"></i>
+                  <p style="font-size:12px;font-weight:700;color:${color}">${label}</p>
+                </div>
+                <p style="font-size:10px;color:var(--text-ghost);margin-top:3px">Bulan ${month} · ${perf.count} hari hadir</p>
+              </div>
+              <div style="text-align:center;border:1px solid ${borderColor};border-radius:11px;padding:8px 12px;background:${bgColor};flex-shrink:0">
+                <p style="font-family:var(--num-font);font-size:20px;font-weight:800;color:${color};line-height:1">${perf.avgLabel}</p>
+                <p style="font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:${color};margin-top:3px;opacity:.8">Rata-rata</p>
+              </div>
+            </div>`;
+        }
+      }
+    }
     renderAdminDashboardPanels();
   }
 
@@ -2062,6 +2132,7 @@
                 </div>
               </div>
             </div>
+            <div id="attendance-performance-card" class="card page-in s2" style="padding:13px 14px;margin-bottom:10px"></div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:9px" class="page-in s2">
               <div class="card" style="padding:13px 13px"><p class="label-xs" style="margin-bottom:8px">Pendapatan Hari Ini</p><p id="today-income" style="font-family:var(--num-font);font-size:17px;font-weight:800;color:var(--text)">Rp 0</p></div>
               <div class="card" style="padding:13px 13px"><p class="label-xs" style="margin-bottom:8px">Pendapatan Bulanan</p><p id="month-omzet" style="font-family:var(--num-font);font-size:17px;font-weight:800;color:var(--green)">Rp 0</p></div>
