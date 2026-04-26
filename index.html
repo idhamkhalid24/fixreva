@@ -586,7 +586,7 @@
       const payload = {
         transactionBonusRate: trxPercent / 100,
         transactionBonusPercent: trxPercent,
-        closingBonusPerMinute,
+        closingBonusPerMinute: closingPerMinute,
         updatedAt: serverTimestamp(),
         updatedAtMs: Date.now(),
         updatedBy: currentUser.username,
@@ -600,7 +600,7 @@
         type: 'bonus_settings'
       }, { merge: true });
       cachedBonusSettings = { ...cachedBonusSettings, ...payload };
-      await logAudit('bonus_settings_update', { transactionBonusPercent: trxPercent, closingBonusPerMinute });
+      await logAudit('bonus_settings_update', { transactionBonusPercent: trxPercent, closingBonusPerMinute: closingPerMinute });
       showToast('✓ Kontrol bonus disimpan');
       await refreshCurrentPage();
     } catch (e) {
