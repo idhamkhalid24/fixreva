@@ -182,10 +182,11 @@
   let currentUser = null, currentPos = null, currentPage = 'login', historyFilter = 'daily', reportFilter = 'daily', selectedUserFilter = 'all';
   let selectedRestoreProFile = null;
   let cachedTransactions = [], cachedAttendance = [], cachedUsers = [], cachedAuditLogs = [], cachedClosings = [];
-  let unsubTransactions = null, unsubAttendance = null, unsubUsers = null, unsubAuditLogs = null, unsubClosings = null, rangeStartDate = null, rangeEndDate = null;
+  let cachedBonusSettings = { transactionBonusRate: 0.015, closingBonusPerMinute: 100 };
+  let unsubTransactions = null, unsubAttendance = null, unsubUsers = null, unsubAuditLogs = null, unsubClosings = null, unsubBonusSettings = null, rangeStartDate = null, rangeEndDate = null;
   let attendanceReady = false, isBusy = false, auditLogLimit = 10, recycleBinLimit = 20, recycleSearch = '', recycleUserFilter = 'all', historyDisplayLimit = 30, inactiveUserLimit = 30, adminMoreOpen = false;
   const TX_SYNC_LIMIT_ADMIN = 800, TX_SYNC_LIMIT_STAFF = 400, ATT_SYNC_LIMIT_ADMIN = 800, ATT_SYNC_LIMIT_STAFF = 400, AUDIT_SYNC_LIMIT = 40, CLOSING_SYNC_LIMIT = 120, HISTORY_PAGE_STEP = 30, INACTIVE_USER_STEP = 30;
-  const CLOSING_DEADLINE_HOUR = 18, CLOSING_DEADLINE_MINUTE = 0, CLOSING_BONUS_PER_MINUTE = 100;
+  const CLOSING_DEADLINE_HOUR = 18, CLOSING_DEADLINE_MINUTE = 0, DEFAULT_CLOSING_BONUS_PER_MINUTE = 100, DEFAULT_TRANSACTION_BONUS_RATE = 0.015;
 
   const $ = (id) => document.getElementById(id);
   const setLoading = (s) => {
@@ -378,6 +379,7 @@
     if (log.action === 'normalize_legacy_data') return `Normalisasi ${d.updated || 0} data`;
     if (log.action === 'closing_day') return `Closing ${d.dateKey || '-'} · bonus Rp ${formatRupiah(d.totalBonus || 0)}`;
     if (log.action === 'closing_cancel') return `Batal closing ${d.dateKey || '-'}`;
+    if (log.action === 'bonus_settings_update') return `Update bonus transaksi ${d.transactionBonusPercent || 0}% · closing Rp ${formatRupiah(d.closingBonusPerMinute || 0)}/menit`;
     return log.action || 'audit';
   }
   function formatAuditTime(log) {
@@ -553,8 +555,96 @@
   function sortByCreatedDesc(list) {
     return [...list].sort((a,b) => getRecordTimeMs(b) - getRecordTimeMs(a));
   }
+  function getTransactionBonusRate() {
+    const rate = Number(cachedBonusSettings?.transactionBonusRate);
+    return Number.isFinite(rate) && rate >= 0 ? rate : DEFAULT_TRANSACTION_BONUS_RATE;
+  }
+  function getTransactionBonusPercent() {
+    return Number((getTransactionBonusRate() * 100).toFixed(3));
+  }
+  function getClosingBonusPerMinute() {
+    const amount = Number(cachedBonusSettings?.closingBonusPerMinute);
+    return Number.isFinite(amount) && amount >= 0 ? amount : DEFAULT_CLOSING_BONUS_PER_MINUTE;
+  }
   function calculateDistance(la1,lo1,la2,lo2){const R=6371e3,dL=(la2-la1)*Math.PI/180,dO=(lo2-lo1)*Math.PI/180,a=Math.sin(dL/2)**2+Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dO/2)**2;return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));}
-  function calculateBonus(o) { return Math.round(Number(o || 0) * 0.015); }
+  function calculateBonus(o) { return Math.round(Number(o || 0) * getTransactionBonusRate()); }
+
+  async function saveBonusSettings() {
+    if (!isAdmin()) return showToast('Hanya admin!', true);
+    if (isBusy) return showToast('Tunggu proses selesai', true);
+    const trxPercentRaw = String($('bonus-trx-percent')?.value || '').replace(',', '.').trim();
+    const closingRaw = String($('bonus-closing-minute')?.value || '').replace(/\D/g, '').trim();
+    const trxPercent = Number(trxPercentRaw);
+    const closingPerMinute = Number(closingRaw);
+    if (!Number.isFinite(trxPercent) || trxPercent < 0 || trxPercent > 100) return showToast('Persen bonus transaksi tidak valid', true);
+    if (!Number.isFinite(closingPerMinute) || closingPerMinute < 0) return showToast('Bonus closing per menit tidak valid', true);
+    const pin = prompt('Simpan kontrol bonus?\nMasukkan PIN admin:');
+    if (!pin) return;
+    if (String(pin) !== String(currentUser.pin)) return showToast('PIN salah!', true);
+    setLoading(true);
+    try {
+      const payload = {
+        transactionBonusRate: trxPercent / 100,
+        transactionBonusPercent: trxPercent,
+        closingBonusPerMinute,
+        updatedAt: serverTimestamp(),
+        updatedAtMs: Date.now(),
+        updatedBy: currentUser.username,
+        updatedByName: currentUser.name
+      };
+      await setDoc(doc(db, 'app_settings', 'bonus_controls'), payload, { merge: true });
+      cachedBonusSettings = { ...cachedBonusSettings, ...payload };
+      await logAudit('bonus_settings_update', { transactionBonusPercent: trxPercent, closingBonusPerMinute });
+      showToast('✓ Kontrol bonus disimpan');
+      await refreshCurrentPage();
+    } catch (e) {
+      console.error(e);
+      showToast('Gagal simpan kontrol bonus', true);
+    }
+    setLoading(false);
+  }
+
+  function resetBonusSettingsForm() {
+    const trx = $('bonus-trx-percent');
+    const closing = $('bonus-closing-minute');
+    if (trx) trx.value = String(getTransactionBonusPercent());
+    if (closing) closing.value = String(getClosingBonusPerMinute());
+  }
+
+  function renderBonusControlCard() {
+    const trxPercent = getTransactionBonusPercent();
+    const closingPerMinute = getClosingBonusPerMinute();
+    const updatedLabel = cachedBonusSettings?.updatedAtMs ? new Date(Number(cachedBonusSettings.updatedAtMs)).toLocaleString('id-ID', { timeZone:'Asia/Jakarta' }) : 'Default sistem';
+    return `
+      <div class="card" style="padding:14px 16px;margin-top:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px">
+          <div>
+            <p class="label-xs" style="margin:0">Kontrol Bonus</p>
+            <p style="font-size:11px;color:var(--text-soft);margin-top:4px">Ubah bonus langsung dari aplikasi tanpa edit coding.</p>
+          </div>
+          <span class="status-pill status-ok">Admin</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">
+          <div>
+            <label style="font-size:10px;color:var(--text-ghost);font-weight:800;text-transform:uppercase;margin-bottom:6px;display:block">Bonus Transaksi (%)</label>
+            <input id="bonus-trx-percent" type="text" inputmode="decimal" class="g-input" value="${escapeHtml(trxPercent)}" placeholder="Contoh 1.5" />
+          </div>
+          <div>
+            <label style="font-size:10px;color:var(--text-ghost);font-weight:800;text-transform:uppercase;margin-bottom:6px;display:block">Bonus Closing / Menit</label>
+            <input id="bonus-closing-minute" type="text" inputmode="numeric" class="g-input" value="${escapeHtml(closingPerMinute)}" placeholder="Contoh 100" />
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
+          <button onclick="saveBonusSettings()" class="btn btn-primary" style="padding:12px;font-size:12px"><i class="fas fa-floppy-disk"></i> Simpan Bonus</button>
+          <button onclick="resetBonusSettingsForm()" class="btn btn-glass" style="padding:12px;font-size:12px"><i class="fas fa-rotate-left"></i> Reset Form</button>
+        </div>
+        <div style="margin-top:10px;padding:10px 11px;border:1px solid var(--border);border-radius:12px;background:var(--surface)">
+          <div style="display:flex;justify-content:space-between;gap:10px;font-size:11px;color:var(--text-soft)"><span>Bonus transaksi aktif</span><strong style="color:var(--text)">${trxPercent}%</strong></div>
+          <div style="display:flex;justify-content:space-between;gap:10px;font-size:11px;color:var(--text-soft);margin-top:5px"><span>Bonus closing aktif</span><strong style="color:var(--text)">Rp ${formatRupiah(closingPerMinute)} / menit</strong></div>
+          <div style="font-size:10.5px;color:var(--text-ghost);margin-top:7px">Update: ${escapeHtml(updatedLabel)}${cachedBonusSettings?.updatedByName ? ` · ${escapeHtml(cachedBonusSettings.updatedByName)}` : ''}</div>
+        </div>
+      </div>`;
+  }
 
   function getTodayClosing() {
     const today = toDateKey(nowDate());
@@ -661,7 +751,7 @@
     const closing = getTodayClosing();
     if (!closing) {
       const lateMinutes = getClosingDelayMinutes(nowDate());
-      const estBonus = lateMinutes * CLOSING_BONUS_PER_MINUTE;
+      const estBonus = lateMinutes * getClosingBonusPerMinute();
       return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:${compact?'10px 11px':'12px 13px'};border:1px solid var(--border);border-radius:13px;background:var(--surface)">
         <div style="min-width:0">
           <div style="font-size:12px;font-weight:800;color:var(--green)"><i class="fas fa-lock-open"></i> Transaksi masih terbuka</div>
@@ -686,7 +776,7 @@
     if (String(pin) !== String(currentUser.pin)) return showToast('PIN salah!', true);
     const currentClosingTime = getCurrentWIBTimeLabel(nowDate());
     const delayMinutes = getClosingDelayMinutes(nowDate());
-    const bonusValue = delayMinutes * CLOSING_BONUS_PER_MINUTE;
+    const bonusValue = delayMinutes * getClosingBonusPerMinute();
     const { users, bonusByUser, totalBonus } = buildClosingBonusByUser(bonusValue);
     if (!confirm(`Yakin closing sekarang?\nLewat deadline: ${delayMinutes} menit\nBonus closing: Rp ${formatRupiah(bonusValue)} per user\nTotal user: ${users.length}`)) return;
     setLoading(true);
@@ -708,7 +798,7 @@
         editedAtMs: null,
         deadline: formatClosingDeadline(),
         delayMinutes,
-        bonusPerMinute: CLOSING_BONUS_PER_MINUTE,
+        bonusPerMinute: getClosingBonusPerMinute(),
         bonusPerUser: bonusValue,
         bonusByUser,
         totalUsers: users.length,
@@ -757,7 +847,7 @@
     if (!pin) return;
     if (String(pin) !== String(currentUser.pin)) return showToast('PIN salah!', true);
     const delayMinutes = getClosingDelayMinutesFromTime(parsed.hour, parsed.minute);
-    const bonusValue = delayMinutes * CLOSING_BONUS_PER_MINUTE;
+    const bonusValue = delayMinutes * getClosingBonusPerMinute();
     const { users, bonusByUser, totalBonus } = buildClosingBonusByUser(bonusValue);
     if (!confirm(`Simpan jam closing ${parsed.label} WIB?\nLewat deadline: ${delayMinutes} menit\nBonus closing: Rp ${formatRupiah(bonusValue)} per user\nTotal user: ${users.length}`)) return;
     setLoading(true);
@@ -911,6 +1001,7 @@
     cachedUsers = [];
     cachedAuditLogs = [];
     cachedClosings = [];
+    cachedBonusSettings = { transactionBonusRate: DEFAULT_TRANSACTION_BONUS_RATE, closingBonusPerMinute: DEFAULT_CLOSING_BONUS_PER_MINUTE };
     attendanceReady = false;
     closeTransactionModal();
     if (unsubTransactions) { unsubTransactions(); unsubTransactions = null; }
@@ -918,6 +1009,7 @@
     if (unsubUsers) { unsubUsers(); unsubUsers = null; }
     if (unsubAuditLogs) { unsubAuditLogs(); unsubAuditLogs = null; }
     if (unsubClosings) { unsubClosings(); unsubClosings = null; }
+    if (unsubBonusSettings) { unsubBonusSettings(); unsubBonusSettings = null; }
     router.navigate('login');
     showToast('✓ Logout berhasil');
   }
@@ -950,6 +1042,7 @@
     if (unsubUsers) { unsubUsers(); unsubUsers = null; }
     if (unsubAuditLogs) { unsubAuditLogs(); unsubAuditLogs = null; }
     if (unsubClosings) { unsubClosings(); unsubClosings = null; }
+    if (unsubBonusSettings) { unsubBonusSettings(); unsubBonusSettings = null; }
 
     // Jangan pakai orderBy('createdAt') di query staff karena data lama/migrasi
     // bisa belum konsisten field createdAt-nya. Itu bikin transaksi staff kadang
@@ -1005,6 +1098,22 @@
       cachedClosings = sortByCreatedDesc(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       refreshCurrentPage();
     }, (err) => console.error('Closing listener gagal:', err));
+
+    unsubBonusSettings = onSnapshot(doc(db, 'app_settings', 'bonus_controls'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data() || {};
+        cachedBonusSettings = {
+          transactionBonusRate: Number.isFinite(Number(data.transactionBonusRate)) ? Number(data.transactionBonusRate) : DEFAULT_TRANSACTION_BONUS_RATE,
+          closingBonusPerMinute: Number.isFinite(Number(data.closingBonusPerMinute)) ? Number(data.closingBonusPerMinute) : DEFAULT_CLOSING_BONUS_PER_MINUTE,
+          updatedAtMs: Number(data.updatedAtMs || 0),
+          updatedBy: data.updatedBy || '',
+          updatedByName: data.updatedByName || ''
+        };
+      } else {
+        cachedBonusSettings = { transactionBonusRate: DEFAULT_TRANSACTION_BONUS_RATE, closingBonusPerMinute: DEFAULT_CLOSING_BONUS_PER_MINUTE };
+      }
+      refreshCurrentPage();
+    }, (err) => console.error('Bonus settings listener gagal:', err));
 
     if (isAdmin()) {
       const uq = query(collection(db, 'users'), orderBy('name'));
@@ -1439,7 +1548,7 @@
     if (!box) return;
     const closing = getTodayClosing();
     const lateMinutes = getClosingDelayMinutes(nowDate());
-    const estBonus = lateMinutes * CLOSING_BONUS_PER_MINUTE;
+    const estBonus = lateMinutes * getClosingBonusPerMinute();
     const displayDelay = closing ? (closing.delayMinutes || 0) : lateMinutes;
     const displayBonus = closing ? (closing.bonusPerUser || 0) : estBonus;
     const closingJam = closing ? getClosingDisplayTime(closing) : '';
@@ -1456,7 +1565,7 @@
               <span class="user-chip" style="font-size:10.5px"><i class="fas fa-clock"></i> Deadline ${formatClosingDeadline()}</span>
             </div>
             <div style="font-size:11.5px;color:var(--text-soft);margin-top:8px;line-height:1.45">
-              ${closing ? `Terkunci jam <b style="color:var(--amber);font-family:var(--num-font)">${closingJam || '--:--'} WIB</b>. Staff otomatis bisa transaksi lagi besok.` : `Belum closing hari ini. Estimasi bonus mengikuti keterlambatan setelah jam 18:00.`}
+              ${closing ? `Terkunci jam <b style="color:var(--amber);font-family:var(--num-font)">${closingJam || '--:--'} WIB</b>. Staff otomatis bisa transaksi lagi besok.` : `Belum closing hari ini. Estimasi bonus mengikuti nominal kontrol bonus admin.`}
             </div>
           </div>
           <div style="width:42px;height:42px;border-radius:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:${closing?'var(--amber-dim)':'var(--accent-dim)'};color:${closing?'var(--amber)':'var(--accent)'};border:1px solid ${closing?'rgba(255,196,107,.22)':'rgba(91,143,255,.22)'}">
@@ -2360,6 +2469,8 @@
 
       ${renderClosingHistoryCard()}
 
+      ${renderBonusControlCard()}
+
       <div class="card" style="padding:14px 16px;margin-top:12px">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px">
           <p class="label-xs" style="margin:0">Manajemen User</p>
@@ -2773,6 +2884,8 @@
   window.handleClosingDay = handleClosingDay;
   window.handleEditClosingTime = handleEditClosingTime;
   window.handleCancelClosingToday = handleCancelClosingToday;
+  window.saveBonusSettings = saveBonusSettings;
+  window.resetBonusSettingsForm = resetBonusSettingsForm;
   window.deleteTransaction = deleteTransaction;
   window.restoreDeletedTransaction = restoreDeletedTransaction;
   window.hardDeleteTransaction = hardDeleteTransaction;
@@ -2818,6 +2931,17 @@
       );
       const closingSnap = await getDocs(query(collection(db, 'closings'), limit(CLOSING_SYNC_LIMIT)));
       cachedClosings = sortByCreatedDesc(closingSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const bonusSnap = await getDoc(doc(db, 'app_settings', 'bonus_controls'));
+      if (bonusSnap.exists()) {
+        const data = bonusSnap.data() || {};
+        cachedBonusSettings = {
+          transactionBonusRate: Number.isFinite(Number(data.transactionBonusRate)) ? Number(data.transactionBonusRate) : DEFAULT_TRANSACTION_BONUS_RATE,
+          closingBonusPerMinute: Number.isFinite(Number(data.closingBonusPerMinute)) ? Number(data.closingBonusPerMinute) : DEFAULT_CLOSING_BONUS_PER_MINUTE,
+          updatedAtMs: Number(data.updatedAtMs || 0),
+          updatedBy: data.updatedBy || '',
+          updatedByName: data.updatedByName || ''
+        };
+      }
       refreshCurrentPage();
     } catch (e) {
       console.error('refreshTransactionsNow gagal:', e);
