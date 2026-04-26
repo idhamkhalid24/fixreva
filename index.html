@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>Rocky Hijab Firebase</title>
+  <title>Rocky Hijab Firebase - Staff Final</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Roboto+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Nunito+Sans:wght@600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <style>
@@ -14,16 +14,17 @@
       --bg:#0a0d14; --bg2:#0f1420; --bg3:#141a2a; --surface:rgba(255,255,255,.04); --surface-hover:rgba(255,255,255,.07);
       --border:rgba(255,255,255,.08); --border-focus:rgba(99,155,255,.5); --text:#eef2ff; --text-soft:#7a85a0; --text-ghost:#3a4258;
       --accent:#5b8fff; --accent-dim:rgba(91,143,255,.15); --accent-glow:rgba(91,143,255,.25); --green:#52d89e; --green-dim:rgba(82,216,158,.12);
-      --red:#ff6b6b; --red-dim:rgba(255,107,107,.12); --amber:#ffc46b; --amber-dim:rgba(255,196,107,.12); --nav-bg:rgba(10,13,20,.92); --shadow:0 8px 32px rgba(0,0,0,.5); --num-font:'Roboto Mono','Inter',sans-serif;
+      --red:#ff6b6b; --red-dim:rgba(255,107,107,.12); --amber:#ffc46b; --amber-dim:rgba(255,196,107,.12); --nav-bg:rgba(10,13,20,.92); --shadow:0 8px 32px rgba(0,0,0,.5); --num-font:'Nunito Sans','Inter','Arial',sans-serif;
     }
     [data-theme="light"]{
       --bg:#f0f2f8; --bg2:#ffffff; --bg3:#f7f8fc; --surface:rgba(0,0,0,.03); --surface-hover:rgba(0,0,0,.055);
       --border:rgba(0,0,0,.07); --border-focus:rgba(64,120,240,.4); --text:#0f1523; --text-soft:#5c6478; --text-ghost:#aab0c0;
       --accent:#3b6df0; --accent-dim:rgba(59,109,240,.1); --accent-glow:rgba(59,109,240,.2); --green:#18a96b; --green-dim:rgba(24,169,107,.1);
-      --red:#e84545; --red-dim:rgba(232,69,69,.1); --amber:#e8960a; --amber-dim:rgba(232,150,10,.1); --nav-bg:rgba(255,255,255,.92); --shadow:0 8px 32px rgba(0,0,0,.1); --num-font:'Roboto Mono','Inter',sans-serif;
+      --red:#e84545; --red-dim:rgba(232,69,69,.1); --amber:#e8960a; --amber-dim:rgba(232,150,10,.1); --nav-bg:rgba(255,255,255,.92); --shadow:0 8px 32px rgba(0,0,0,.1); --num-font:'Nunito Sans','Inter','Arial',sans-serif;
     }
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;transition:var(--transition-theme);-webkit-font-smoothing:antialiased}
+    .stat-value,.stat-mini-num,.amount-display,.trx-amount,.trx-time{font-variant-numeric:tabular-nums lining-nums;font-feature-settings:'tnum' 1,'lnum' 1;}
     #app{max-width:430px;min-height:100vh;margin:0 auto;position:relative;background:var(--bg);overflow-x:hidden}
     [data-theme="dark"] #app::before{content:'';position:fixed;top:-120px;left:-80px;width:320px;height:320px;background:radial-gradient(circle, rgba(91,143,255,.09) 0%, transparent 70%);pointer-events:none;z-index:0}
     #page-content{position:relative;z-index:1;padding-bottom:96px}
@@ -116,19 +117,18 @@
     <div class="modal-sheet">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:10px">
         <div>
-          <h3 style="font-size:16px;font-weight:800;letter-spacing:-.02em">Tambah Transaksi</h3>
-          <p style="font-size:11px;color:var(--text-soft);margin-top:2px">Isi cepat, simpan langsung.</p>
+          <h3 style="font-size:16px;font-weight:800;letter-spacing:-.02em">Transaksi Manual</h3>
         </div>
         <button onclick="closeTransactionModal()" class="btn btn-glass" style="width:36px;height:36px;padding:0;border-radius:12px"><i class="fas fa-xmark"></i></button>
       </div>
       <div style="display:flex;flex-direction:column;gap:10px">
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:14px 15px">
-          <p class="label-xs">Keterangan / Item</p>
-          <input id="modal-pos-note" type="text" placeholder="Pashmina, Hijab, dll..." class="g-input" style="background:none;border:none;padding:4px 0 2px;font-size:15px;line-height:1.45;min-height:30px;display:block">
+          <p class="label-xs">Catatan</p>
+          <input id="modal-pos-note" type="text" placeholder="Tulis manual..." autocomplete="off" class="g-input" style="background:none;border:none;padding:4px 0 2px;font-size:15px;line-height:1.45;min-height:30px;display:block">
         </div>
         <div style="background:var(--surface);border:1px solid var(--border);border-radius:13px;padding:14px 15px">
           <p class="label-xs">Nominal</p>
-          <input id="modal-pos-amount" type="text" inputmode="numeric" placeholder="0" class="amount-display" data-numeric="0">
+          <input id="modal-pos-amount" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="0" class="amount-display" data-numeric="0">
         </div>
       </div>
       <div id="modal-pos-status" style="margin:14px 0 0"></div>
