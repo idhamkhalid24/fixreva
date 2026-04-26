@@ -592,14 +592,20 @@
         updatedBy: currentUser.username,
         updatedByName: currentUser.name
       };
-      await setDoc(doc(db, 'app_settings', 'bonus_controls'), payload, { merge: true });
+      await setDoc(doc(db, 'closings', '__bonus_settings'), {
+        ...payload,
+        id: '__bonus_settings',
+        dateKey: '__bonus_settings',
+        closed: false,
+        type: 'bonus_settings'
+      }, { merge: true });
       cachedBonusSettings = { ...cachedBonusSettings, ...payload };
       await logAudit('bonus_settings_update', { transactionBonusPercent: trxPercent, closingBonusPerMinute });
       showToast('✓ Kontrol bonus disimpan');
       await refreshCurrentPage();
     } catch (e) {
       console.error(e);
-      showToast('Gagal simpan kontrol bonus', true);
+      showToast('Gagal simpan kontrol bonus: ' + (e.code || e.message || 'cek Firestore'), true);
     }
     setLoading(false);
   }
@@ -1099,7 +1105,7 @@
       refreshCurrentPage();
     }, (err) => console.error('Closing listener gagal:', err));
 
-    unsubBonusSettings = onSnapshot(doc(db, 'app_settings', 'bonus_controls'), (snap) => {
+    unsubBonusSettings = onSnapshot(doc(db, 'closings', '__bonus_settings'), (snap) => {
       if (snap.exists()) {
         const data = snap.data() || {};
         cachedBonusSettings = {
@@ -2931,7 +2937,7 @@
       );
       const closingSnap = await getDocs(query(collection(db, 'closings'), limit(CLOSING_SYNC_LIMIT)));
       cachedClosings = sortByCreatedDesc(closingSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-      const bonusSnap = await getDoc(doc(db, 'app_settings', 'bonus_controls'));
+      const bonusSnap = await getDoc(doc(db, 'closings', '__bonus_settings'));
       if (bonusSnap.exists()) {
         const data = bonusSnap.data() || {};
         cachedBonusSettings = {
