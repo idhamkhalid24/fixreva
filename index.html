@@ -2031,6 +2031,7 @@ Masukkan PIN admin:`);
               <p class="trx-note">${escapeHtml(t.note || 'Transaksi')}</p>
               <p class="trx-time">${(() => { const ms = getRecordTimeMs(t); return ms ? dateToTimeInput(new Date(ms)) : formatDateLabel(getTransactionDateKey(t)); })()}</p>
             </div>
+            ${isAdmin() ? `<button onclick="quickEditHistoryTransaction('${t.id}')" class="btn btn-glass" title="Edit transaksi" style="width:34px;height:34px;flex-shrink:0;border-radius:9px;padding:0;font-size:11px;color:var(--accent)"><i class="fas fa-pen"></i></button>` : ''}
             <button onclick="deleteTransaction('${t.id}')" class="btn btn-danger" style="width:34px;height:34px;flex-shrink:0;border-radius:9px;padding:0;font-size:11px"><i class="fas fa-trash-can"></i></button>
           </div>
         `).join('') || `<div style="text-align:center;padding:56px 0;color:var(--text-ghost)"><i class="fas fa-inbox" style="font-size:30px;margin-bottom:10px;display:block;opacity:0.5"></i><p style="font-size:12.5px">Tidak ada transaksi</p></div>`}
@@ -2981,6 +2982,75 @@ Masukkan PIN admin:`);
     const visible = rows.slice(0, adminEditAbsenLimit);
     return `<div style="display:flex;flex-direction:column;gap:9px"><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><select id="admin-edit-absen-user" class="g-input" onchange="setAdminEditAbsenUserFilter(this.value)">${getUserOptionsHtml(true)}</select><input id="admin-edit-absen-search" class="g-input" value="${escapeHtml(adminEditAbsenSearch)}" oninput="setAdminEditAbsenSearch(this.value)" placeholder="Cari user/tanggal/ID..."></div><div style="font-size:10.5px;color:var(--text-soft)">Menampilkan ${visible.length} dari ${rows.length} data absen.</div><div style="display:flex;flex-direction:column;gap:9px;max-height:360px;overflow-y:auto">${visible.length ? visible.map(a => { const id = escapeHtml(a.id || ''); return `<div style="border:1px solid var(--border);border-radius:13px;background:var(--surface);padding:10px 11px"><div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:8px"><div style="min-width:0"><div style="font-size:12px;font-weight:850">${escapeHtml(a.name || a.user || '-')}</div><div style="font-size:10px;color:var(--text-soft);margin-top:2px">${formatDateLabel(extractDateKey(a))} · ${formatAttendanceTime(a)}</div></div><span class="status-pill status-ok" style="font-size:9px;padding:4px 8px">Absen</span></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:7px"><select id="edit-absen-user-${id}" class="g-input">${getUserOptionsHtml(false)}</select><input id="edit-absen-date-${id}" class="g-input" type="date" value="${escapeHtml(extractDateKey(a) || toDateKey(nowDate()))}"></div><input id="edit-absen-time-${id}" class="g-input" type="time" step="1" value="${escapeHtml(getWibTimeInputValue(a).slice(0,8))}" style="margin-bottom:8px"><button onclick="saveAdminEditedAttendance('${id}')" class="btn btn-primary" style="width:100%;padding:10px;font-size:12px"><i class="fas fa-floppy-disk"></i> Simpan Edit Absen</button></div>`; }).join('') : `<div style="font-size:12px;color:var(--text-soft)">Belum ada absen sesuai filter.</div>`}</div>${rows.length > visible.length ? `<button onclick="increaseAdminEditAbsenLimit()" class="btn btn-glass" style="width:100%;padding:10px;font-size:12px">Muat 25 absen lagi</button>` : ''}</div>`;
   }
+  async function quickEditHistoryTransaction(id) {
+    if (!isAdmin()) return showToast('Hanya admin!', true);
+    if (isBusy) return showToast('Tunggu proses selesai', true);
+    const trx = cachedTransactions.find(t => t.id === id);
+    if (!trx || isRecordDeleted(trx)) return showToast('Transaksi tidak ditemukan', true);
+
+    const oldUser = sanitizeUsername(trx.user || '');
+    const oldDate = extractDateKey(trx) || toDateKey(nowDate());
+    const oldTime = getWibTimeInputValue(trx).slice(0, 8) || '00:00:00';
+    const oldAmount = Number(trx.amount || 0);
+    const oldNote = String(trx.note || 'Transaksi');
+
+    const userInput = prompt(`Edit USER transaksi\nSaat ini: ${trx.name || oldUser}\nIsi username baru, atau kosongkan untuk tetap:`, oldUser);
+    if (userInput === null) return;
+    const user = sanitizeUsername(userInput || oldUser);
+    if (!user) return showToast('User wajib diisi', true);
+    const userData = getUserByUsername(user) || { username:user, name: trx.name || user };
+
+    const dateInput = prompt('Edit TANGGAL transaksi (YYYY-MM-DD):', oldDate);
+    if (dateInput === null) return;
+    const dateKey = String(dateInput || oldDate).slice(0, 10);
+
+    const timeInput = prompt('Edit JAM transaksi (HH:MM atau HH:MM:SS):', oldTime);
+    if (timeInput === null) return;
+    const timeValue = String(timeInput || oldTime).trim();
+
+    const amountInput = prompt('Edit NOMINAL transaksi:', String(oldAmount));
+    if (amountInput === null) return;
+    const amount = Number(String(amountInput || oldAmount).replace(/\D/g, ''));
+    if (!amount || amount <= 0) return showToast('Nominal tidak valid', true);
+
+    const noteInput = prompt('Edit CATATAN transaksi:', oldNote);
+    if (noteInput === null) return;
+    const note = String(noteInput || oldNote).trim() || 'Transaksi';
+
+    let ms;
+    try { ms = getWibDateTimeMs(dateKey, timeValue); }
+    catch (e) { return showToast(e.message || 'Tanggal/jam tidak valid', true); }
+
+    const pin = prompt(`Simpan edit transaksi dari halaman Semua?\nRp ${formatRupiah(oldAmount)} → Rp ${formatRupiah(amount)}\nMasukkan PIN admin:`);
+    if (!pin) return;
+    if (String(pin) !== String(currentUser.pin)) return showToast('PIN salah!', true);
+
+    setLoading(true);
+    try {
+      await setDoc(doc(db, 'transactions', id), {
+        user,
+        name: userData.name || user,
+        amount,
+        note,
+        dateKey,
+        monthKey: dateKey.slice(0, 7),
+        createdAtMs: ms,
+        editedAt: serverTimestamp(),
+        editedAtMs: Date.now(),
+        editedBy: currentUser.username,
+        editedByName: currentUser.name
+      }, { merge: true });
+      await logAudit('transaction_edit_admin_inline', { id, oldUser, user, oldAmount, amount, oldDate, dateKey });
+      cachedTransactions = cachedTransactions.map(t => t.id === id ? { ...t, user, name: userData.name || user, amount, note, dateKey, monthKey: dateKey.slice(0, 7), createdAtMs: ms, editedAtMs: Date.now(), editedBy: currentUser.username, editedByName: currentUser.name } : t);
+      showToast('✓ Transaksi berhasil diedit');
+      await refreshCurrentPage();
+    } catch(e) {
+      console.error(e);
+      showToast('Gagal edit transaksi', true);
+    }
+    setLoading(false);
+  }
+
   async function saveAdminEditedTransaction(id) {
     if (!isAdmin()) return showToast('Hanya admin!', true);
     if (isBusy) return showToast('Tunggu proses selesai', true);
@@ -3065,7 +3135,6 @@ Masukkan PIN admin:`);
         </div>
       </div>`,
       renderAdminToggleSection('attendance', 'Performa Absen Staff', `<span class="status-pill status-ok">${activeUsers().length}</span>`, renderAdminAttendancePerformanceBody, 'fa-user-clock', 'Rata-rata jam absen bulanan staff'),
-      renderAdminToggleSection('edit_transactions', 'Edit Transaksi', `<span class="status-pill status-ok">${getAdminEditableTransactions().length}</span>`, renderAdminEditTransactionsBody, 'fa-pen-to-square', 'Edit transaksi tanpa buka Firebase'),
       renderAdminToggleSection('edit_attendance', 'Edit Absen', `<span class="status-pill status-ok">${getAdminEditableAttendance().length}</span>`, renderAdminEditAttendanceBody, 'fa-calendar-check', 'Edit jam/tanggal/user absen'),
       renderAdminToggleSection('closing_history', 'Riwayat Closing', `<span class="status-pill status-ok">${getClosingHistoryRows(99).length}</span>`, () => renderClosingHistoryCard(), 'fa-lock', 'Riwayat closing aktif/batal'),
       renderAdminToggleSection('bonus_control', 'Control Bonus', `<span class="status-pill status-ok">${getTransactionBonusPercent()}%</span>`, () => renderBonusControlCard(), 'fa-coins', 'Atur bonus transaksi dan bonus closing'),
@@ -3513,6 +3582,7 @@ Masukkan PIN admin:`);
   window.restoreProFromFile = restoreProFromFile;
   window.resetAllAppData = resetAllAppData;
   window.normalizeLegacyData = normalizeLegacyData;
+  window.quickEditHistoryTransaction = quickEditHistoryTransaction;
   window.saveAdminEditedTransaction = saveAdminEditedTransaction;
   window.saveAdminEditedAttendance = saveAdminEditedAttendance;
   window.setAdminEditTrxSearch = setAdminEditTrxSearch;
