@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>Rocky Hijab Firebase - v28 Fix Closing Terbaru</title>
+  <title>Rocky Hijab Firebase - v29 Fix Batal Closing Per User Admin</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Nunito+Sans:wght@600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -661,12 +661,33 @@
       </div>`;
   }
 
-  function getTodayClosing() {
+  function getTodayClosing(username = null) {
     const today = toDateKey(nowDate());
-    return cachedClosings.find(c => c.dateKey === today && c.closed === true) || null;
+    const userKey = username ? sanitizeUsername(username) : null;
+    return cachedClosings.find(c => {
+      if (!c || c.dateKey !== today || c.closed !== true) return false;
+      if (c.type === 'bonus_settings' || c.id === '__bonus_settings' || c.dateKey === '__bonus_settings') return false;
+      const scope = c.scope || (c.user ? 'user' : 'global');
+      if (!userKey) return scope === 'global' || !c.user;
+      return scope === 'user' && sanitizeUsername(c.user) === userKey;
+    }) || null;
   }
-  function isTransactionsClosedToday() {
-    return !!getTodayClosing();
+  function getTodayGlobalClosing() {
+    return getTodayClosing(null);
+  }
+  function getTodayUserClosing(username = currentUser?.username) {
+    return getTodayClosing(username);
+  }
+  function isTransactionsClosedToday(username = currentUser?.username) {
+    if (isAdmin()) return false;
+    return !!getTodayGlobalClosing() || !!getTodayUserClosing(username);
+  }
+  function isUserClosedToday(username) {
+    return !!getTodayGlobalClosing() || !!getTodayUserClosing(username);
+  }
+  function getClosingDocId(dateKey, username = null) {
+    const u = username ? sanitizeUsername(username) : '';
+    return u ? `${dateKey}_${u}` : dateKey;
   }
   function getClosingDelayMinutes(date = new Date()) {
     const wib = getWIBDate(date);
@@ -736,8 +757,9 @@
   function getStaffClosingUsers() {
     return activeUsers().filter(u => sanitizeUsername(u.role || 'staff') !== 'admin' && !ADMIN_USERNAMES.includes(sanitizeUsername(u.username)));
   }
-  function buildClosingBonusByUser(bonusValue) {
-    const users = getStaffClosingUsers();
+  function buildClosingBonusByUser(bonusValue, targetUsername = null) {
+    const target = targetUsername ? sanitizeUsername(targetUsername) : null;
+    const users = target ? getStaffClosingUsers().filter(u => sanitizeUsername(u.username) === target) : getStaffClosingUsers();
     const bonusByUser = users.reduce((acc, u) => {
       acc[sanitizeUsername(u.username)] = Number(bonusValue || 0);
       return acc;
@@ -746,7 +768,7 @@
     return { users, bonusByUser, totalBonus };
   }
   function getMonthlyClosingRecords(month = toMonthKey(nowDate())) {
-    return cachedClosings.filter(c => c.closed === true && String(c.monthKey || c.dateKey || '').startsWith(month));
+    return cachedClosings.filter(c => c && c.closed === true && c.type !== 'bonus_settings' && c.id !== '__bonus_settings' && c.dateKey !== '__bonus_settings' && String(c.monthKey || c.dateKey || '').startsWith(month));
   }
   function getClosingBonusPerUserDynamic(closing) {
     if (!closing || closing.closed !== true) return 0;
@@ -766,7 +788,12 @@
   function getClosingBonusValue(closing, username = null) {
     if (!closing || closing.closed !== true) return 0;
     const perUser = getClosingBonusPerUserDynamic(closing);
-    if (username && username !== 'all') return perUser;
+    const target = username && username !== 'all' ? sanitizeUsername(username) : null;
+    const scope = closing.scope || (closing.user ? 'user' : 'global');
+    if (target) {
+      if (scope === 'user') return sanitizeUsername(closing.user) === target ? perUser : 0;
+      return perUser;
+    }
     return perUser * getClosingTotalUsers(closing);
   }
   function getMonthlyClosingBonus(username = null, month = toMonthKey(nowDate())) {
@@ -778,7 +805,7 @@
     return { trxBonus, closingBonus, totalBonus: trxBonus + closingBonus };
   }
   function renderClosingStatusHtml(compact = false) {
-    const closing = getTodayClosing();
+    const closing = isAdmin() ? getTodayGlobalClosing() : (getTodayUserClosing(currentUser?.username) || getTodayGlobalClosing());
     if (!closing) {
       const lateMinutes = getClosingDelayMinutes(nowDate());
       const estBonus = lateMinutes * getClosingBonusPerMinute();
@@ -796,24 +823,46 @@
       </div>
     </div>`;
   }
+  function getAdminClosingTargetUser() {
+    const val = sanitizeUsername($('closing-target-user')?.value || '');
+    if (!val || val === 'global') return null;
+    return getUserByUsername(val) || null;
+  }
+  function getClosingTargetLabel(user = getAdminClosingTargetUser()) {
+    return user ? `${user.name || user.username} (@${user.username})` : 'Semua User';
+  }
+
   async function handleClosingDay() {
     if (!isAdmin()) return showToast('Hanya admin!', true);
     if (isBusy) return showToast('Tunggu proses selesai', true);
     const today = toDateKey(nowDate());
-    if (getTodayClosing()) return showToast('Hari ini sudah closing!', true);
-    const pin = prompt(`Closing transaksi tanggal ${today}?\nSetelah closing, staff tidak bisa tambah transaksi sampai tanggal berikutnya.\nMasukkan PIN admin:`);
+    const targetUser = getAdminClosingTargetUser();
+    const targetUsername = targetUser ? sanitizeUsername(targetUser.username) : null;
+    const existing = targetUsername ? getTodayUserClosing(targetUsername) : getTodayGlobalClosing();
+    if (existing) return showToast(targetUsername ? 'User ini sudah closing hari ini!' : 'Global hari ini sudah closing!', true);
+    const pin = prompt(`Closing transaksi ${targetUsername ? 'untuk ' + getClosingTargetLabel(targetUser) : 'SEMUA USER'} tanggal ${today}?
+${targetUsername ? 'Hanya user ini yang terkunci. User lain tetap bisa transaksi.' : 'Semua staff akan terkunci transaksi sampai tanggal berikutnya.'}
+Masukkan PIN admin:`);
     if (!pin) return;
     if (String(pin) !== String(currentUser.pin)) return showToast('PIN salah!', true);
     const currentClosingTime = getCurrentWIBTimeLabel(nowDate());
     const delayMinutes = getClosingDelayMinutes(nowDate());
     const bonusValue = delayMinutes * getClosingBonusPerMinute();
-    const { users, bonusByUser, totalBonus } = buildClosingBonusByUser(bonusValue);
-    if (!confirm(`Yakin closing sekarang?\nLewat deadline: ${delayMinutes} menit\nBonus closing: Rp ${formatRupiah(bonusValue)} per user\nTotal user: ${users.length}`)) return;
+    const { users, bonusByUser, totalBonus } = buildClosingBonusByUser(bonusValue, targetUsername);
+    if (!users.length) return showToast('User target tidak ditemukan / bukan staff aktif.', true);
+    if (!confirm(`Yakin closing ${targetUsername ? getClosingTargetLabel(targetUser) : 'SEMUA USER'} sekarang?
+Lewat deadline: ${delayMinutes} menit
+Bonus closing: Rp ${formatRupiah(bonusValue)} per user
+Total user kena bonus: ${users.length}`)) return;
     setLoading(true);
     try {
-      await setDoc(doc(db, 'closings', today), {
-        id: today,
+      const docId = getClosingDocId(today, targetUsername);
+      await setDoc(doc(db, 'closings', docId), {
+        id: docId,
         closed: true,
+        scope: targetUsername ? 'user' : 'global',
+        user: targetUsername || null,
+        name: targetUser?.name || null,
         dateKey: today,
         monthKey: toMonthKey(nowDate()),
         closedAt: serverTimestamp(),
@@ -835,8 +884,11 @@
         totalBonus
       }, { merge: true });
       cachedClosings = [{
-        id: today,
+        id: docId,
         closed: true,
+        scope: targetUsername ? 'user' : 'global',
+        user: targetUsername || null,
+        name: targetUser?.name || null,
         dateKey: today,
         monthKey: toMonthKey(nowDate()),
         closedAtMs: Date.now(),
@@ -852,9 +904,9 @@
         bonusByUser,
         totalUsers: users.length,
         totalBonus
-      }, ...cachedClosings.filter(c => (c.id !== today && c.dateKey !== today))];
-      await logAudit('closing_day', { dateKey: today, closingTime: currentClosingTime, delayMinutes, bonusPerUser: bonusValue, totalUsers: users.length, totalBonus });
-      showToast(delayMinutes ? `✓ Closing berhasil · jam ${currentClosingTime} · bonus Rp ${formatRupiah(bonusValue)}/user` : `✓ Closing berhasil · jam ${currentClosingTime}`);
+      }, ...cachedClosings.filter(c => c.id !== docId)];
+      await logAudit('closing_day', { dateKey: today, scope: targetUsername ? 'user' : 'global', user: targetUsername || null, closingTime: currentClosingTime, delayMinutes, bonusPerUser: bonusValue, totalUsers: users.length, totalBonus });
+      showToast(delayMinutes ? `✓ Closing ${targetUsername ? targetUser.name : 'global'} · bonus Rp ${formatRupiah(bonusValue)}/user` : `✓ Closing ${targetUsername ? targetUser.name : 'global'} berhasil`);
       await refreshCurrentPage();
     } catch (e) {
       console.error(e);
@@ -863,11 +915,14 @@
     setLoading(false);
   }
 
+
   async function handleEditClosingTime() {
     if (!isAdmin()) return showToast('Hanya admin!', true);
     if (isBusy) return showToast('Tunggu proses selesai', true);
-    const closing = getTodayClosing();
-    if (!closing) return showToast('Closing hari ini belum ada.', true);
+    const targetUser = getAdminClosingTargetUser();
+    const targetUsername = targetUser ? sanitizeUsername(targetUser.username) : null;
+    const closing = targetUsername ? getTodayUserClosing(targetUsername) : getTodayGlobalClosing();
+    if (!closing) return showToast(targetUsername ? 'User ini belum closing hari ini.' : 'Closing global hari ini belum ada.', true);
     const currentLabel = closing.manualClosingTime || closing.closingTime || new Date(closing.closedAtMs || Date.now()).toLocaleTimeString('id-ID', { hour:'2-digit', minute:'2-digit', timeZone:'Asia/Jakarta' });
     const input = prompt(`Edit jam closing tanggal ${closing.dateKey || toDateKey(nowDate())}\nFormat HH:MM WIB. Contoh 18:10`, currentLabel);
     if (!input) return;
@@ -878,12 +933,13 @@
     if (String(pin) !== String(currentUser.pin)) return showToast('PIN salah!', true);
     const delayMinutes = getClosingDelayMinutesFromTime(parsed.hour, parsed.minute);
     const bonusValue = delayMinutes * getClosingBonusPerMinute();
-    const { users, bonusByUser, totalBonus } = buildClosingBonusByUser(bonusValue);
+    const { users, bonusByUser, totalBonus } = buildClosingBonusByUser(bonusValue, targetUsername);
     if (!confirm(`Simpan jam closing ${parsed.label} WIB?\nLewat deadline: ${delayMinutes} menit\nBonus closing: Rp ${formatRupiah(bonusValue)} per user\nTotal user: ${users.length}`)) return;
     setLoading(true);
     try {
       const dateKey = closing.dateKey || toDateKey(nowDate());
-      await setDoc(doc(db, 'closings', dateKey), {
+      const docId = closing.id || getClosingDocId(dateKey, targetUsername);
+      await setDoc(doc(db, 'closings', docId), {
         manualClosingTime: parsed.label,
         closingTime: parsed.label,
         delayMinutes,
@@ -897,7 +953,7 @@
         editedByName: currentUser.name
       }, { merge: true });
       await logAudit('closing_time_edit', { dateKey, closingTime: parsed.label, delayMinutes, bonusPerUser: bonusValue, totalUsers: users.length, totalBonus });
-      cachedClosings = cachedClosings.map(c => (c.id === dateKey || c.dateKey === dateKey) ? {
+      cachedClosings = cachedClosings.map(c => c.id === docId ? {
         ...c,
         manualClosingTime: parsed.label,
         closingTime: parsed.label,
@@ -922,16 +978,21 @@
   async function handleCancelClosingToday() {
     if (!isAdmin()) return showToast('Hanya admin!', true);
     if (isBusy) return showToast('Tunggu proses selesai', true);
-    const closing = getTodayClosing();
-    if (!closing) return showToast('Belum ada closing hari ini.', true);
+    const targetUser = getAdminClosingTargetUser();
+    const targetUsername = targetUser ? sanitizeUsername(targetUser.username) : null;
+    const closing = targetUsername ? getTodayUserClosing(targetUsername) : getTodayGlobalClosing();
+    if (!closing) return showToast(targetUsername ? 'User ini belum closing hari ini.' : 'Belum ada closing global hari ini.', true);
     const dateKey = closing.dateKey || toDateKey(nowDate());
-    const pin = prompt(`Batal closing tanggal ${dateKey}?\nTransaksi staff akan dibuka kembali.\nMasukkan PIN admin:`);
+    const docId = closing.id || getClosingDocId(dateKey, targetUsername);
+    const pin = prompt(`Batal closing ${targetUsername ? 'untuk ' + getClosingTargetLabel(targetUser) : 'GLOBAL'} tanggal ${dateKey}?
+${targetUsername ? 'User ini akan dibuka lagi. User lain tidak berubah.' : 'Transaksi staff akan dibuka kembali.'}
+Masukkan PIN admin:`);
     if (!pin) return;
     if (String(pin) !== String(currentUser.pin)) return showToast('PIN salah!', true);
-    if (!confirm('Yakin batal closing hari ini? Bonus closing hari ini tidak akan dihitung.')) return;
+    if (!confirm(`Yakin batal closing ${targetUsername ? getClosingTargetLabel(targetUser) : 'GLOBAL'}?\nBonus closing target ini tidak akan dihitung.`)) return;
     setLoading(true);
     try {
-      await setDoc(doc(db, 'closings', dateKey), {
+      await setDoc(doc(db, 'closings', docId), {
         closed: false,
         canceled: true,
         canceledAt: serverTimestamp(),
@@ -943,9 +1004,9 @@
         bonusPerUser: 0,
         bonusByUser: {}
       }, { merge: true });
-      await logAudit('closing_cancel', { dateKey });
-      cachedClosings = cachedClosings.map(c => (c.id === dateKey || c.dateKey === dateKey) ? { ...c, closed:false, canceled:true, totalBonus:0, bonusPerUser:0, bonusByUser:{} } : c);
-      showToast('✓ Closing dibatalkan, transaksi dibuka lagi');
+      await logAudit('closing_cancel', { dateKey, scope: targetUsername ? 'user' : 'global', user: targetUsername || null });
+      cachedClosings = cachedClosings.map(c => (c.id === docId || (c.dateKey === dateKey && (targetUsername ? sanitizeUsername(c.user) === targetUsername : (c.scope === 'global' || !c.user)))) ? { ...c, id: docId, closed:false, canceled:true, canceledAtMs:Date.now(), canceledBy:currentUser.username, canceledByName:currentUser.name, totalBonus:0, bonusPerUser:0, bonusByUser:{} } : c);
+      showToast(targetUsername ? `✓ Closing ${targetUser?.name || targetUsername} dibatalkan` : '✓ Closing global dibatalkan, transaksi dibuka lagi');
       await refreshCurrentPage();
     } catch (e) {
       console.error(e);
@@ -1462,7 +1523,7 @@
       return;
     }
     if (isTransactionsClosedToday()) {
-      const closing = getTodayClosing();
+      const closing = getTodayUserClosing(currentUser?.username) || getTodayGlobalClosing();
       const jamClosing = getClosingDisplayTime(closing) || '--:--';
       el.innerHTML = `<div style="display:flex;flex-direction:column;gap:3px"><div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--amber)"><i class="fas fa-lock"></i> Transaksi sudah closing</div><div style="font-size:12px;color:var(--text-soft)">Jam closing: ${jamClosing} WIB · terbuka lagi besok.</div></div>`;
     } else if (!attendanceReady) {
@@ -1602,7 +1663,7 @@
                     <div style="font-size:13px;font-weight:850;line-height:1.25">${formatDateLabel(dateKey)}</div>
                     <span class="status-pill ${statusClass}" style="font-size:9.5px;padding:4px 8px;white-space:nowrap">${statusText}</span>
                   </div>
-                  <div style="font-size:10.5px;color:var(--text-soft);margin-top:4px">Jam closing ${jam} WIB${canceled && cancelJam ? ` · batal ${cancelJam} WIB` : ''}</div>
+                  <div style="font-size:10.5px;color:var(--text-soft);margin-top:4px">${c.user ? 'User: ' + escapeHtml(c.name || c.user) + ' · ' : 'Global · '}Jam closing ${jam} WIB${canceled && cancelJam ? ` · batal ${cancelJam} WIB` : ''}</div>
                   <div style="font-size:10.5px;color:var(--text-ghost);margin-top:3px">Oleh ${escapeHtml(actor)} · bonus/user Rp ${formatRupiah(getClosingBonusPerUserDynamic(c))}</div>
                 </div>
               </div>`;
@@ -1615,22 +1676,26 @@
     if (!isAdmin()) return;
     const box = $('admin-closing-panel');
     if (!box) return;
-    const closing = getTodayClosing();
+    const targetUser = getAdminClosingTargetUser();
+    const targetUsername = targetUser ? sanitizeUsername(targetUser.username) : null;
+    const closing = targetUsername ? getTodayUserClosing(targetUsername) : getTodayGlobalClosing();
     const lateMinutes = getClosingDelayMinutes(nowDate());
     const estBonus = lateMinutes * getClosingBonusPerMinute();
     const displayDelay = closing ? (closing.delayMinutes || 0) : lateMinutes;
     const displayBonus = closing ? getClosingBonusPerUserDynamic(closing) : estBonus;
     const closingJam = closing ? getClosingDisplayTime(closing) : '';
     const statusText = closing ? 'Sudah Closing' : 'Masih Terbuka';
-    const mainTitle = closing ? `Closing ${closingJam || '--:--'} WIB` : 'Belum Closing Hari Ini';
-    const mainDesc = closing ? 'Staff terkunci transaksi sampai ganti tanggal.' : `Deadline ${formatClosingDeadline()} · bonus mengikuti kontrol admin.`;
+    const mainTitle = closing ? `Closing ${closingJam || '--:--'} WIB` : `Belum Closing ${targetUsername ? targetUser.name : 'Global'}`;
+    const mainDesc = closing
+      ? (targetUsername ? 'User ini terkunci transaksi. User lain tetap bisa jalan.' : 'Semua staff terkunci transaksi sampai ganti tanggal.')
+      : `Pilih user yang pulang duluan, atau pilih Semua User untuk kunci global.`;
     box.innerHTML = `
       <div style="background:linear-gradient(145deg,var(--bg3),var(--bg2));border:1px solid ${closing?'rgba(255,196,107,.24)':'rgba(91,143,255,.18)'};border-radius:18px;padding:14px;box-shadow:0 10px 28px rgba(0,0,0,.14);position:relative;overflow:hidden">
         <div style="position:absolute;top:-44px;right:-50px;width:132px;height:132px;background:radial-gradient(circle,${closing?'rgba(255,196,107,.16)':'rgba(91,143,255,.16)'} 0%,transparent 70%);pointer-events:none"></div>
 
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;position:relative;z-index:1;margin-bottom:12px">
           <div style="min-width:0;flex:1">
-            <p class="label-xs" style="margin:0 0 6px">Closing Transaksi</p>
+            <p class="label-xs" style="margin:0 0 6px">Closing Per User</p>
             <div style="font-size:16px;font-weight:900;letter-spacing:-.02em;line-height:1.2">${mainTitle}</div>
             <div style="font-size:11px;color:var(--text-soft);margin-top:5px;line-height:1.35">${mainDesc}</div>
           </div>
@@ -1638,6 +1703,11 @@
             <i class="fas ${closing?'fa-lock':'fa-lock-open'}"></i> ${statusText}
           </span>
         </div>
+
+        <select id="closing-target-user" class="g-input" onchange="renderAdminClosingPanel()" style="margin-bottom:10px;position:relative;z-index:1">
+          <option value="global">Semua User / Closing Global</option>
+          ${getStaffClosingUsers().map(u => `<option value="${escapeHtml(u.username)}" ${targetUsername === sanitizeUsername(u.username) ? 'selected' : ''}>${escapeHtml(u.name || u.username)} (@${escapeHtml(u.username)}) ${isUserClosedToday(u.username) ? '· SUDAH CLOSING' : ''}</option>`).join('')}
+        </select>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;position:relative;z-index:1;margin-bottom:11px">
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:10px 11px">
@@ -1652,7 +1722,7 @@
 
         <div style="display:flex;flex-direction:column;gap:8px;position:relative;z-index:1">
           <button onclick="handleClosingDay()" ${closing?'disabled':''} class="btn ${closing?'btn-glass':'btn-primary'}" style="width:100%;min-height:44px;padding:11px 12px;font-size:13px;border-radius:14px;font-weight:900">
-            <i class="fas fa-lock"></i> ${closing?'Sudah Diclosing':'Closing Sekarang'}
+            <i class="fas fa-lock"></i> ${closing?'Sudah Diclosing':'Closing Target Ini'}
           </button>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
             <button onclick="handleEditClosingTime()" ${closing?'':'disabled'} class="btn btn-glass" style="min-height:40px;padding:10px 8px;font-size:12px;border-radius:13px">
@@ -1665,6 +1735,7 @@
         </div>
       </div>`;
   }
+
 
   async function updateHomeStats() {
     const today = toDateKey(nowDate());
@@ -1686,7 +1757,7 @@
     if ($('total-bonus')) $('total-bonus').innerText = `Rp ${formatRupiah(bonusBreakdown.totalBonus)}`;
     if ($('bonus-text')) $('bonus-text').innerText = '';
     if ($('month-omzet')) $('month-omzet').innerText = `Rp ${formatRupiah(omzetBulanan)}`;
-    const todayClosing = getTodayClosing();
+    const todayClosing = isAdmin() ? getTodayGlobalClosing() : (getTodayUserClosing(currentUser?.username) || getTodayGlobalClosing());
     const closingJam = getClosingDisplayTime(todayClosing);
     if ($('today-attendance-info')) $('today-attendance-info').innerText = todayClosing ? (closingJam || '--:--') : (rec ? formatAttendanceTime(rec).slice(0,5) : '--:--');
     const card = $('today-attendance-card'), lbl = $('today-attendance-label'), info = $('today-attendance-info');
@@ -3034,6 +3105,7 @@
   window.handleClosingDay = handleClosingDay;
   window.handleEditClosingTime = handleEditClosingTime;
   window.handleCancelClosingToday = handleCancelClosingToday;
+  window.renderAdminClosingPanel = renderAdminClosingPanel;
   window.saveBonusSettings = saveBonusSettings;
   window.resetBonusSettingsForm = resetBonusSettingsForm;
   window.deleteTransaction = deleteTransaction;
