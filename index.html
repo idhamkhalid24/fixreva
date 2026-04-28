@@ -576,6 +576,42 @@
     return Number.isFinite(amount) && amount >= 0 ? amount : DEFAULT_CLOSING_BONUS_PER_MINUTE;
   }
   function calculateDistance(la1,lo1,la2,lo2){const R=6371e3,dL=(la2-la1)*Math.PI/180,dO=(lo2-lo1)*Math.PI/180,a=Math.sin(dL/2)**2+Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*Math.sin(dO/2)**2;return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));}
+  function isDailyEmployee(userOrUsername) {
+    const user = typeof userOrUsername === 'object' ? userOrUsername : getUserByUsername(userOrUsername);
+    const role = sanitizeUsername(user?.role || 'staff');
+    return ['harian','daily','karyawan_harian'].includes(role);
+  }
+  function getUserTransactionBonusRate(username) {
+    const user = getUserByUsername(username) || (sanitizeUsername(currentUser?.username) === sanitizeUsername(username) ? currentUser : null);
+    if (isDailyEmployee(user)) {
+      const customRate = Number(user?.dailyBonusRate);
+      if (Number.isFinite(customRate) && customRate >= 0) return customRate;
+      const customPercent = Number(user?.dailyBonusPercent);
+      if (Number.isFinite(customPercent) && customPercent >= 0) return customPercent / 100;
+    }
+    return getTransactionBonusRate();
+  }
+  function getUserTransactionBonusPercent(username) {
+    return Number((getUserTransactionBonusRate(username) * 100).toFixed(3));
+  }
+  function getTodayTransactionsForUser(username, dateKey = toDateKey(nowDate())) {
+    const target = sanitizeUsername(username || '');
+    if (!target) return [];
+    return getVisibleTransactions().filter(t => sanitizeUsername(t.user) === target && getTransactionDateKey(t) === dateKey);
+  }
+  function getDailyEmployeeTodaySalary(username, dateKey = toDateKey(nowDate())) {
+    const items = getTodayTransactionsForUser(username, dateKey);
+    const income = items.reduce((sum, t) => sum + Number(t.amount || 0), 0);
+    const rate = getUserTransactionBonusRate(username);
+    return { items, income, rate, percent: Number((rate * 100).toFixed(3)), salary: Math.round(income * rate) };
+  }
+  function calculateTransactionBonusForList(list = []) {
+    const total = (list || []).reduce((sum, t) => {
+      const rate = getUserTransactionBonusRate(t.user);
+      return sum + (Number(t.amount || 0) * rate);
+    }, 0);
+    return Math.round(total);
+  }
   function calculateBonus(o) { return Math.round(Number(o || 0) * getTransactionBonusRate()); }
 
   async function saveBonusSettings() {
@@ -769,7 +805,9 @@
   function buildClosingBonusByUser(bonusValue, targetUsername = null, dateKey = toDateKey(nowDate())) {
     const target = targetUsername ? sanitizeUsername(targetUsername) : null;
     const targetUsers = target ? getStaffClosingUsers().filter(u => sanitizeUsername(u.username) === target) : getStaffClosingUsers();
-    const bonusUsers = targetUsers.filter(u => hasUserAttendanceOnDate(u.username, dateKey));
+    // Bonus closing hanya untuk staff biasa yang sudah absen hari ini.
+    // Karyawan harian boleh di-closing oleh admin, tapi tidak dapat bonus closing.
+    const bonusUsers = targetUsers.filter(u => !isDailyEmployee(u) && hasUserAttendanceOnDate(u.username, dateKey));
     const bonusByUser = bonusUsers.reduce((acc, u) => {
       acc[sanitizeUsername(u.username)] = Number(bonusValue || 0);
       return acc;
@@ -807,8 +845,10 @@
     return getMonthlyClosingRecords(month).reduce((sum, closing) => sum + getClosingBonusValue(closing, username), 0);
   }
   function getBonusBreakdown(transactions, username = null, month = toMonthKey(nowDate())) {
-    const trxBonus = calculateBonus(transactions.filter(t => getTransactionMonthKey(t) === month).reduce((a,b)=>a+Number(b.amount||0),0));
-    const closingBonus = getMonthlyClosingBonus(username, month);
+    const target = username && username !== 'all' ? sanitizeUsername(username) : null;
+    const monthlyTransactions = transactions.filter(t => getTransactionMonthKey(t) === month);
+    const trxBonus = calculateTransactionBonusForList(monthlyTransactions);
+    const closingBonus = target && isDailyEmployee(target) ? 0 : getMonthlyClosingBonus(username, month);
     return { trxBonus, closingBonus, totalBonus: trxBonus + closingBonus };
   }
   function renderClosingStatusHtml(compact = false) {
@@ -1073,7 +1113,7 @@ Masukkan PIN admin:`);
       const user = snap.data();
       if (!isUserActive(user)) throw new Error('User nonaktif. Hubungi admin.');
       if (String(user.pin || '') !== pin) throw new Error('PIN salah');
-      currentUser = { username: sanitizeUsername(user.username || username), name: user.name, pin: String(user.pin), role: user.role || 'staff', active: user.active !== false };
+      currentUser = { username: sanitizeUsername(user.username || username), name: user.name, pin: String(user.pin), role: user.role || 'staff', dailyBonusRate: Number(user.dailyBonusRate || 0), dailyBonusPercent: Number(user.dailyBonusPercent || 0), active: user.active !== false };
       cachedTransactions = [];
       cachedAttendance = [];
       cachedAuditLogs = [];
@@ -1228,7 +1268,7 @@ Masukkan PIN admin:`);
         refreshCurrentPage();
       }, (err) => console.error(err));
     } else {
-      cachedUsers = currentUser ? [{ username: currentUser.username, name: currentUser.name, role: currentUser.role || 'staff', active: true }] : [];
+      cachedUsers = currentUser ? [{ username: currentUser.username, name: currentUser.name, role: currentUser.role || 'staff', dailyBonusRate: Number(currentUser.dailyBonusRate || 0), dailyBonusPercent: Number(currentUser.dailyBonusPercent || 0), active: true }] : [];
       cachedAuditLogs = [];
     }
 
@@ -1252,6 +1292,7 @@ Masukkan PIN admin:`);
   function canTransactNow() {
     if (isAdmin()) return true;
     if (isTransactionsClosedToday()) return false;
+    if (isDailyEmployee(currentUser)) return true;
     if (!attendanceReady) return false;
     return hasClockedInToday();
   }
@@ -1342,6 +1383,9 @@ Masukkan PIN admin:`);
     } else if (isTransactionsClosedToday()) {
       const closing = getTodayClosing();
       statusBox.innerHTML = `<div style="display:flex;align-items:center;gap:9px;padding:11px 13px;background:var(--amber-dim);border:1px solid rgba(255,196,107,0.2);border-radius:11px"><i class="fas fa-lock" style="color:var(--amber);font-size:13px"></i><span style="font-size:12.5px;color:var(--amber);font-weight:600">Transaksi sudah closing hari ini. Terbuka otomatis besok.</span></div>`;
+    } else if (isDailyEmployee(currentUser)) {
+      const daily = getDailyEmployeeTodaySalary(currentUser.username);
+      statusBox.innerHTML = `<div style="display:flex;align-items:center;gap:9px;padding:11px 13px;background:var(--accent-dim);border:1px solid rgba(91,143,255,0.18);border-radius:11px"><i class="fas fa-user-check" style="color:var(--accent);font-size:13px"></i><span style="font-size:12.5px;color:var(--accent);font-weight:600">Karyawan harian · tanpa absen · gaji ${daily.percent}%</span></div>`;
     } else if (!attendanceReady) {
       statusBox.innerHTML = `<div style="display:flex;align-items:center;gap:9px;padding:11px 13px;background:var(--surface);border:1px solid var(--border);border-radius:11px"><i class="fas fa-circle-notch fa-spin" style="color:var(--text-soft);font-size:13px"></i><span style="font-size:12.5px;color:var(--text-soft);font-weight:600">Memeriksa absensi hari ini...</span></div>`;
     } else if (canTransactNow()) {
@@ -1535,6 +1579,9 @@ Masukkan PIN admin:`);
       const closing = getTodayUserClosing(currentUser?.username) || getTodayGlobalClosing();
       const jamClosing = getClosingDisplayTime(closing) || '--:--';
       el.innerHTML = `<div style="display:flex;flex-direction:column;gap:3px"><div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--amber)"><i class="fas fa-lock"></i> Transaksi sudah closing</div><div style="font-size:12px;color:var(--text-soft)">Jam closing: ${jamClosing} WIB · terbuka lagi besok.</div></div>`;
+    } else if (isDailyEmployee(currentUser)) {
+      const daily = getDailyEmployeeTodaySalary(currentUser.username);
+      el.innerHTML = `<div style="display:flex;flex-direction:column;gap:3px"><div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:800;color:var(--accent)"><i class="fas fa-user-check"></i> Mode karyawan harian</div><div style="font-size:12px;color:var(--text-soft)">Tanpa absen · gaji ${daily.percent}% dari pendapatan hari ini.</div></div>`;
     } else if (!attendanceReady) {
       if (hasClockedInToday()) {
         const rec = getTodayAttendanceRecord();
@@ -1761,17 +1808,23 @@ Masukkan PIN admin:`);
     const omzetBulanan = sourceTransactions.filter(t => t.monthKey === month).reduce((a,b)=>a+Number(b.amount||0),0);
     const bonusScopeUser = isAdmin() ? (selectedUserFilter !== 'all' ? selectedUserFilter : null) : currentUser.username;
     const bonusBreakdown = getBonusBreakdown(sourceTransactions, bonusScopeUser, month);
+    const dailyMode = !isAdmin() && isDailyEmployee(currentUser);
+    const dailyPay = dailyMode ? getDailyEmployeeTodaySalary(currentUser.username, today) : null;
     const rec = sortByCreatedDesc(sourceAttendance.filter(a => extractDateKey(a) === today))[0] || null;
     if ($('today-income')) $('today-income').innerText = `Rp ${formatRupiah(pendapatanHariIni)}`;
-    if ($('total-bonus')) $('total-bonus').innerText = `Rp ${formatRupiah(bonusBreakdown.totalBonus)}`;
-    if ($('bonus-text')) $('bonus-text').innerText = '';
-    if ($('month-omzet')) $('month-omzet').innerText = `Rp ${formatRupiah(omzetBulanan)}`;
+    if ($('total-bonus')) $('total-bonus').innerText = dailyMode ? `Rp ${formatRupiah(dailyPay.salary)}` : `Rp ${formatRupiah(bonusBreakdown.totalBonus)}`;
+    if ($('bonus-text')) $('bonus-text').innerText = dailyMode ? `${dailyPay.percent}% dari pendapatan hari ini · ${dailyPay.items.length} transaksi` : '';
+    if ($('month-omzet')) $('month-omzet').innerText = dailyMode ? `${dailyPay.percent}%` : `Rp ${formatRupiah(omzetBulanan)}`;
     const todayClosing = isAdmin() ? getTodayGlobalClosing() : (getTodayUserClosing(currentUser?.username) || getTodayGlobalClosing());
     const closingJam = getClosingDisplayTime(todayClosing);
-    if ($('today-attendance-info')) $('today-attendance-info').innerText = todayClosing ? (closingJam || '--:--') : (rec ? formatAttendanceTime(rec).slice(0,5) : '--:--');
+    if ($('today-attendance-info')) $('today-attendance-info').innerText = dailyMode ? 'Harian' : (todayClosing ? (closingJam || '--:--') : (rec ? formatAttendanceTime(rec).slice(0,5) : '--:--'));
     const card = $('today-attendance-card'), lbl = $('today-attendance-label'), info = $('today-attendance-info');
     if (card && lbl && info) {
-      if (todayClosing) {
+      if (dailyMode) {
+        card.style.background = 'var(--accent-dim)'; card.style.borderColor = 'rgba(91,143,255,0.22)';
+        lbl.style.color = 'var(--accent)'; info.style.color = 'var(--accent)';
+        lbl.innerText = 'Mode';
+      } else if (todayClosing) {
         card.style.background = 'var(--amber-dim)'; card.style.borderColor = 'rgba(255,196,107,0.22)';
         lbl.style.color = 'var(--amber)'; info.style.color = 'var(--amber)';
         lbl.innerText = 'Jam Closing';
@@ -1793,6 +1846,21 @@ Masukkan PIN admin:`);
       // Render card rata-rata absen bulanan
       const perfCard = $('attendance-performance-card');
       if (perfCard) {
+        if (dailyMode) {
+          perfCard.innerHTML = `
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+              <div style="min-width:0;flex:1">
+                <p class="label-xs" style="margin-bottom:4px">Gaji Karyawan Harian</p>
+                <p style="font-size:12px;color:var(--text-soft);line-height:1.35">Hanya data hari ini. Transaksi tetap masuk ke total global admin.</p>
+                <p style="font-size:10.5px;color:var(--text-ghost);margin-top:4px">Omzet: Rp ${formatRupiah(dailyPay.income)} · ${dailyPay.items.length} transaksi</p>
+              </div>
+              <div style="text-align:center;border:1px solid rgba(255,196,107,0.2);border-radius:11px;padding:8px 12px;background:var(--amber-dim);flex-shrink:0">
+                <p style="font-family:var(--num-font);font-size:20px;font-weight:850;color:var(--amber);line-height:1">Rp ${formatRupiah(dailyPay.salary)}</p>
+                <p style="font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--amber);margin-top:3px">${dailyPay.percent}%</p>
+              </div>
+            </div>`;
+          return;
+        }
         const month = toMonthKey(nowDate());
         const perf = getMonthlyAttendancePerformance(currentUser.username);
         if (!perf) {
@@ -1986,6 +2054,10 @@ Masukkan PIN admin:`);
     if ($('admin-user-name')) $('admin-user-name').value = data?.name || '';
     if ($('admin-user-pin')) $('admin-user-pin').value = data?.pin || '';
     if ($('admin-user-role')) $('admin-user-role').value = String(data?.role || 'staff');
+    if ($('admin-user-daily-percent')) {
+      const dailyPercentValue = data ? (Number(data.dailyBonusPercent ?? (Number(data.dailyBonusRate || 0) * 100)) || 0) : '';
+      $('admin-user-daily-percent').value = data ? String(dailyPercentValue) : '';
+    }
   }
 
   function clearAdminUserForm() {
@@ -1994,6 +2066,7 @@ Masukkan PIN admin:`);
     if ($('admin-user-name')) $('admin-user-name').value = '';
     if ($('admin-user-pin')) $('admin-user-pin').value = '';
     if ($('admin-user-role')) $('admin-user-role').value = 'staff';
+    if ($('admin-user-daily-percent')) $('admin-user-daily-percent').value = '';
   }
 
   async function saveAdminUser() {
@@ -2003,11 +2076,14 @@ Masukkan PIN admin:`);
     const name = String($('admin-user-name')?.value || '').trim();
     const pin = String($('admin-user-pin')?.value || '').trim();
     const role = String($('admin-user-role')?.value || 'staff').trim().toLowerCase();
+    const dailyPercentRaw = String($('admin-user-daily-percent')?.value || '').replace(',', '.').trim();
+    const dailyBonusPercent = dailyPercentRaw === '' ? 0 : Number(dailyPercentRaw);
     if (!username || !name || !pin) return showToast('Lengkapi username, nama, dan PIN!', true);
     if (!/^[a-z0-9_-]{3,30}$/.test(username)) return showToast('Username hanya boleh huruf kecil, angka, _ atau - (min 3)', true);
     if (name.length < 2) return showToast('Nama terlalu pendek', true);
     if (pin.length < 3) return showToast('PIN minimal 3 digit/karakter', true);
-    if (!['admin','staff'].includes(role)) return showToast('Role tidak valid!', true);
+    if (!['admin','staff','harian'].includes(role)) return showToast('Role tidak valid!', true);
+    if (!Number.isFinite(dailyBonusPercent) || dailyBonusPercent < 0 || dailyBonusPercent > 100) return showToast('Persentase karyawan harian tidak valid', true);
     setLoading(true);
     try {
       const ref = doc(db, 'users', username);
@@ -2018,6 +2094,8 @@ Masukkan PIN admin:`);
         name,
         pin,
         role,
+        dailyBonusRate: role === 'harian' ? dailyBonusPercent / 100 : 0,
+        dailyBonusPercent: role === 'harian' ? dailyBonusPercent : 0,
         active: true,
         updatedAt: serverTimestamp(),
         updatedBy: currentUser.username,
@@ -2109,7 +2187,7 @@ Masukkan PIN admin:`);
       exportedBy: currentUser?.username || 'admin',
       data: {
         users: sortUsers(cachedUsers).map(u => ({
-          username: u.username, name: u.name, pin: String(u.pin || ''), role: String(u.role || 'staff'),
+          username: u.username, name: u.name, pin: String(u.pin || ''), role: String(u.role || 'staff'), dailyBonusRate: Number(u.dailyBonusRate || 0), dailyBonusPercent: Number(u.dailyBonusPercent || 0),
           active: u.active !== false, createdAt: serializeTimestamp(u.createdAt) || null
         })),
         attendance: sortByCreatedDesc(getVisibleAttendance()).map(a => ({
@@ -2266,6 +2344,8 @@ Masukkan PIN admin:`);
               name: String(u.name || u.nama || u.Name || u.Nama || u.username || u.user || ''),
               pin: String(u.pin || u.PIN || u.password || ''),
               role: String(u.role || u.Role || 'staff'),
+              dailyBonusPercent: Number(u.dailyBonusPercent || u.daily_percent || u.persen_harian || 0),
+              dailyBonusRate: Number(u.dailyBonusRate || 0) || (Number(u.dailyBonusPercent || u.daily_percent || u.persen_harian || 0) / 100),
               active: String(u.active ?? u.Active ?? 'true') !== 'false',
               createdAt: u.createdAt || u.created_at || null
             })).filter(u => u.username),
@@ -2357,6 +2437,7 @@ Masukkan PIN admin:`);
           name: u.name || '',
           pin: u.pin || '',
           role: u.role || 'staff',
+          dailyBonusPercent: Number(u.dailyBonusPercent || (Number(u.dailyBonusRate || 0) * 100) || 0),
           createdAt: u.createdAt || ''
         }));
         const attendanceRows = backup.data.attendance.map(a => ({
@@ -2403,6 +2484,8 @@ Masukkan PIN admin:`);
         name: String(u.name || username),
         pin: String(u.pin || ''),
         role: String(u.role || 'staff'),
+        dailyBonusRate: Number(u.dailyBonusRate || 0) || (Number(u.dailyBonusPercent || 0) / 100),
+        dailyBonusPercent: Number(u.dailyBonusPercent || 0) || (Number(u.dailyBonusRate || 0) * 100),
         active: u.active !== false,
         createdAt: u.createdAt ? Timestamp.fromMillis(new Date(u.createdAt).getTime()) : serverTimestamp()
       }, { merge: true });
@@ -2486,6 +2569,8 @@ Masukkan PIN admin:`);
             name: String(u.name || ''),
             pin: String(u.pin || ''),
             role: String(u.role || 'staff'),
+            dailyBonusPercent: Number(u.dailyBonusPercent || u.daily_percent || u.persen_harian || 0),
+            dailyBonusRate: Number(u.dailyBonusRate || 0) || (Number(u.dailyBonusPercent || u.daily_percent || u.persen_harian || 0) / 100),
             active: String(u.active || 'true') !== 'false',
             createdAt: u.createdAt || null
           })).filter(u => u.username),
@@ -2637,6 +2722,23 @@ Masukkan PIN admin:`);
 
       <div class="card" style="padding:14px 16px;margin-top:12px">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px">
+          <div><p class="label-xs" style="margin:0">Kontrol Karyawan Harian</p><p style="font-size:11px;color:var(--text-soft);margin-top:4px">Persentase khusus diatur dari form user. Gaji/bonus transaksi mengikuti pendapatan masing-masing user.</p></div>
+          <span class="status-pill status-ok">${activeUsers().filter(u => isDailyEmployee(u)).length} harian</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          ${activeUsers().filter(u => isDailyEmployee(u)).length ? activeUsers().filter(u => isDailyEmployee(u)).map(u => {
+            const month = toMonthKey(nowDate());
+            const daily = getDailyEmployeeTodaySalary(u.username);
+            const omzetUser = daily.income;
+            const pct = daily.percent;
+            const bonusUser = daily.salary;
+            return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:13px;background:var(--surface)"><div style="min-width:0"><div style="font-size:13px;font-weight:850">${escapeHtml(u.name || u.username)}</div><div style="font-size:10.5px;color:var(--text-soft);margin-top:3px">${pct}% dari omzet hari ini Rp ${formatRupiah(omzetUser)} · ${daily.items.length} transaksi</div></div><div style="text-align:right;flex-shrink:0"><div style="font-family:var(--num-font);font-size:14px;font-weight:900;color:var(--amber)">Rp ${formatRupiah(bonusUser)}</div><div style="font-size:9.5px;color:var(--text-ghost);margin-top:2px">gaji hari ini</div></div></div>`;
+          }).join('') : `<div style="font-size:12px;color:var(--text-soft);padding:10px 0">Belum ada user role karyawan harian.</div>`}
+        </div>
+      </div>
+
+      <div class="card" style="padding:14px 16px;margin-top:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px">
           <p class="label-xs" style="margin:0">Manajemen User</p>
           <span class="status-pill status-ok">${userCount} user aktif</span>
         </div>
@@ -2650,8 +2752,11 @@ Masukkan PIN admin:`);
           <input id="admin-user-pin" class="g-input" inputmode="numeric" placeholder="PIN user (min 3)" />
           <select id="admin-user-role" class="g-input">
             <option value="staff">staff</option>
+            <option value="harian">karyawan harian</option>
             <option value="admin">admin</option>
           </select>
+          <input id="admin-user-daily-percent" class="g-input" inputmode="decimal" placeholder="Persentase karyawan harian (%) contoh 10" />
+          <div style="padding:9px 11px;border:1px solid var(--border);border-radius:12px;background:var(--surface);font-size:10.5px;color:var(--text-soft);line-height:1.35">Khusus role <b>karyawan harian</b>: tanpa absen, tanpa bonus closing/global, gaji dihitung dari persentase pendapatan hari ini. Transaksinya tetap masuk total global admin.</div>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
             <button onclick="saveAdminUser()" class="btn btn-primary" style="padding:12px;font-size:12px">Simpan User</button>
             <button onclick="clearAdminUserForm()" class="btn btn-glass" style="padding:12px;font-size:12px">Kosongkan</button>
@@ -2921,7 +3026,7 @@ Masukkan PIN admin:`);
               <div class="card" style="padding:13px 13px"><p class="label-xs" style="margin-bottom:8px">Pendapatan Bulanan</p><p id="month-omzet" style="font-family:var(--num-font);font-size:17px;font-weight:800;color:var(--green)">Rp 0</p></div>
             </div>
             <div class="bonus-card page-in s3" style="padding:14px 15px;margin-bottom:9px">
-              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><div><p class="label-xs" style="margin-bottom:6px;color:var(--amber)">Total Bonus Bulanan + Bonus Closing</p><p id="total-bonus" style="font-family:var(--num-font);font-size:23px;font-weight:850;color:var(--amber);line-height:1">Rp 0</p><p id="bonus-text" style="font-size:10.5px;color:var(--text-soft);margin-top:5px"></p></div><span id="scope-chip" class="user-chip">Data Saya</span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><div><p class="label-xs" style="margin-bottom:6px;color:var(--amber)">Bonus / Gaji</p><p id="total-bonus" style="font-family:var(--num-font);font-size:23px;font-weight:850;color:var(--amber);line-height:1">Rp 0</p><p id="bonus-text" style="font-size:10.5px;color:var(--text-soft);margin-top:5px"></p></div><span id="scope-chip" class="user-chip">Data Saya</span></div>
               <div id="staff-closing-status" style="margin-top:10px"></div>
             </div>
             <button onclick="router.navigate('history')" class="btn btn-glass page-in s4" style="width:100%;padding:13px 14px;font-size:13px;border-radius:14px;margin-top:2px;justify-content:space-between">
