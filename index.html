@@ -1384,8 +1384,7 @@ Masukkan PIN admin:`);
       const closing = getTodayClosing();
       statusBox.innerHTML = `<div style="display:flex;align-items:center;gap:9px;padding:11px 13px;background:var(--amber-dim);border:1px solid rgba(255,196,107,0.2);border-radius:11px"><i class="fas fa-lock" style="color:var(--amber);font-size:13px"></i><span style="font-size:12.5px;color:var(--amber);font-weight:600">Transaksi sudah closing hari ini. Terbuka otomatis besok.</span></div>`;
     } else if (isDailyEmployee(currentUser)) {
-      const daily = getDailyEmployeeTodaySalary(currentUser.username);
-      statusBox.innerHTML = `<div style="display:flex;align-items:center;gap:9px;padding:11px 13px;background:var(--accent-dim);border:1px solid rgba(91,143,255,0.18);border-radius:11px"><i class="fas fa-user-check" style="color:var(--accent);font-size:13px"></i><span style="font-size:12.5px;color:var(--accent);font-weight:600">Karyawan harian · tanpa absen · gaji ${daily.percent}%</span></div>`;
+      statusBox.innerHTML = `<div style="display:flex;align-items:center;gap:9px;padding:11px 13px;background:var(--accent-dim);border:1px solid rgba(91,143,255,0.18);border-radius:11px"><i class="fas fa-user-check" style="color:var(--accent);font-size:13px"></i><span style="font-size:12.5px;color:var(--accent);font-weight:600">Karyawan Harian</span></div>`;
     } else if (!attendanceReady) {
       statusBox.innerHTML = `<div style="display:flex;align-items:center;gap:9px;padding:11px 13px;background:var(--surface);border:1px solid var(--border);border-radius:11px"><i class="fas fa-circle-notch fa-spin" style="color:var(--text-soft);font-size:13px"></i><span style="font-size:12.5px;color:var(--text-soft);font-weight:600">Memeriksa absensi hari ini...</span></div>`;
     } else if (canTransactNow()) {
@@ -1580,8 +1579,7 @@ Masukkan PIN admin:`);
       const jamClosing = getClosingDisplayTime(closing) || '--:--';
       el.innerHTML = `<div style="display:flex;flex-direction:column;gap:3px"><div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--amber)"><i class="fas fa-lock"></i> Transaksi sudah closing</div><div style="font-size:12px;color:var(--text-soft)">Jam closing: ${jamClosing} WIB · terbuka lagi besok.</div></div>`;
     } else if (isDailyEmployee(currentUser)) {
-      const daily = getDailyEmployeeTodaySalary(currentUser.username);
-      el.innerHTML = `<div style="display:flex;flex-direction:column;gap:3px"><div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:800;color:var(--accent)"><i class="fas fa-user-check"></i> Mode karyawan harian</div><div style="font-size:12px;color:var(--text-soft)">Tanpa absen · gaji ${daily.percent}% dari pendapatan hari ini.</div></div>`;
+      el.innerHTML = `<div style="display:flex;flex-direction:column;gap:3px"><div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:800;color:var(--accent)"><i class="fas fa-user-check"></i> Karyawan Harian</div><div style="font-size:12px;color:var(--text-soft)">Tanpa absen · transaksi hari ini saja.</div></div>`;
     } else if (!attendanceReady) {
       if (hasClockedInToday()) {
         const rec = getTodayAttendanceRecord();
@@ -1856,7 +1854,7 @@ Masukkan PIN admin:`);
               </div>
               <div style="text-align:center;border:1px solid rgba(255,196,107,0.2);border-radius:11px;padding:8px 12px;background:var(--amber-dim);flex-shrink:0">
                 <p style="font-family:var(--num-font);font-size:20px;font-weight:850;color:var(--amber);line-height:1">Rp ${formatRupiah(dailyPay.salary)}</p>
-                <p style="font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--amber);margin-top:3px">${dailyPay.percent}%</p>
+                <p style="font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--amber);margin-top:3px">Gaji Hari Ini</p>
               </div>
             </div>`;
           return;
