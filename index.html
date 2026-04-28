@@ -1813,8 +1813,8 @@ Masukkan PIN admin:`);
     const rec = sortByCreatedDesc(sourceAttendance.filter(a => extractDateKey(a) === today))[0] || null;
     if ($('today-income')) $('today-income').innerText = `Rp ${formatRupiah(pendapatanHariIni)}`;
     if ($('total-bonus')) $('total-bonus').innerText = dailyMode ? `Rp ${formatRupiah(dailyPay.salary)}` : `Rp ${formatRupiah(bonusBreakdown.totalBonus)}`;
-    if ($('bonus-text')) $('bonus-text').innerText = dailyMode ? `${dailyPay.percent}% dari pendapatan hari ini · ${dailyPay.items.length} transaksi` : '';
-    if ($('month-omzet')) $('month-omzet').innerText = dailyMode ? `${dailyPay.percent}%` : `Rp ${formatRupiah(omzetBulanan)}`;
+    if ($('bonus-text')) $('bonus-text').innerText = dailyMode ? `${dailyPay.items.length} transaksi hari ini` : '';
+    if ($('month-omzet')) $('month-omzet').innerText = `Rp ${formatRupiah(omzetBulanan)}`;
     const todayClosing = isAdmin() ? getTodayGlobalClosing() : (getTodayUserClosing(currentUser?.username) || getTodayGlobalClosing());
     const closingJam = getClosingDisplayTime(todayClosing);
     if ($('today-attendance-info')) $('today-attendance-info').innerText = dailyMode ? 'Harian' : (todayClosing ? (closingJam || '--:--') : (rec ? formatAttendanceTime(rec).slice(0,5) : '--:--'));
@@ -3007,6 +3007,22 @@ Masukkan PIN admin:`);
                 <button class="theme-toggle logout-btn" onclick="logout()" title="Logout"><i class="fas fa-power-off"></i></button>
               </div>
             </div>
+            ${isDailyEmployee(currentUser) ? `
+            <div class="stat-hero page-in s1" style="margin-bottom:10px">
+              <p class="stat-label">Pendapatan Hari Ini</p>
+              <p id="today-income" class="stat-value">Rp 0</p>
+              <p class="stat-sub">Data transaksi hari ini saja</p>
+            </div>
+            <div class="bonus-card page-in s2" style="padding:14px 15px;margin-bottom:9px">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+                <div>
+                  <p class="label-xs" style="margin-bottom:6px;color:var(--amber)">Gaji Hari Ini</p>
+                  <p id="total-bonus" style="font-family:var(--num-font);font-size:23px;font-weight:850;color:var(--amber);line-height:1">Rp 0</p>
+                  <p id="bonus-text" style="font-size:10.5px;color:var(--text-soft);margin-top:5px"></p>
+                </div>
+                <span id="scope-chip" class="user-chip">Harian</span>
+              </div>
+            </div>` : `
             <div class="card page-in s1" style="padding:13px 14px;margin-bottom:10px">
               <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px">
                 <p class="label-xs" style="margin:0">Absen Hari Ini</p>
@@ -3029,6 +3045,7 @@ Masukkan PIN admin:`);
               <div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><div><p class="label-xs" style="margin-bottom:6px;color:var(--amber)">Bonus / Gaji</p><p id="total-bonus" style="font-family:var(--num-font);font-size:23px;font-weight:850;color:var(--amber);line-height:1">Rp 0</p><p id="bonus-text" style="font-size:10.5px;color:var(--text-soft);margin-top:5px"></p></div><span id="scope-chip" class="user-chip">Data Saya</span></div>
               <div id="staff-closing-status" style="margin-top:10px"></div>
             </div>
+            `}
             <button onclick="router.navigate('history')" class="btn btn-glass page-in s4" style="width:100%;padding:13px 14px;font-size:13px;border-radius:14px;margin-top:2px;justify-content:space-between">
               <span><i class="fas fa-receipt"></i> Lihat Riwayat Hari Ini</span>
               <i class="fas fa-chevron-right"></i>
