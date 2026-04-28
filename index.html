@@ -757,15 +757,25 @@
   function getStaffClosingUsers() {
     return activeUsers().filter(u => sanitizeUsername(u.role || 'staff') !== 'admin' && !ADMIN_USERNAMES.includes(sanitizeUsername(u.username)));
   }
-  function buildClosingBonusByUser(bonusValue, targetUsername = null) {
+  function hasUserAttendanceOnDate(username, dateKey = toDateKey(nowDate())) {
+    const target = sanitizeUsername(username || '');
+    if (!target || !dateKey) return false;
+    return getVisibleAttendance().some(a =>
+      !isRecordDeleted(a) &&
+      sanitizeUsername(a.user) === target &&
+      extractDateKey(a) === dateKey
+    );
+  }
+  function buildClosingBonusByUser(bonusValue, targetUsername = null, dateKey = toDateKey(nowDate())) {
     const target = targetUsername ? sanitizeUsername(targetUsername) : null;
-    const users = target ? getStaffClosingUsers().filter(u => sanitizeUsername(u.username) === target) : getStaffClosingUsers();
-    const bonusByUser = users.reduce((acc, u) => {
+    const targetUsers = target ? getStaffClosingUsers().filter(u => sanitizeUsername(u.username) === target) : getStaffClosingUsers();
+    const bonusUsers = targetUsers.filter(u => hasUserAttendanceOnDate(u.username, dateKey));
+    const bonusByUser = bonusUsers.reduce((acc, u) => {
       acc[sanitizeUsername(u.username)] = Number(bonusValue || 0);
       return acc;
     }, {});
     const totalBonus = Object.values(bonusByUser).reduce((a,b)=>a+Number(b||0),0);
-    return { users, bonusByUser, totalBonus };
+    return { users: bonusUsers, targetUsers, bonusUsers, bonusByUser, totalBonus };
   }
   function getMonthlyClosingRecords(month = toMonthKey(nowDate())) {
     return cachedClosings.filter(c => c && c.closed === true && c.type !== 'bonus_settings' && c.id !== '__bonus_settings' && c.dateKey !== '__bonus_settings' && String(c.monthKey || c.dateKey || '').startsWith(month));
@@ -787,14 +797,11 @@
   }
   function getClosingBonusValue(closing, username = null) {
     if (!closing || closing.closed !== true) return 0;
-    const perUser = getClosingBonusPerUserDynamic(closing);
+    const byUser = closing.bonusByUser || {};
     const target = username && username !== 'all' ? sanitizeUsername(username) : null;
-    const scope = closing.scope || (closing.user ? 'user' : 'global');
-    if (target) {
-      if (scope === 'user') return sanitizeUsername(closing.user) === target ? perUser : 0;
-      return perUser;
-    }
-    return perUser * getClosingTotalUsers(closing);
+    if (target) return Number(byUser[target] || 0);
+    if (Object.keys(byUser).length) return Object.values(byUser).reduce((a,b)=>a+Number(b||0),0);
+    return Number(closing.totalBonus || 0);
   }
   function getMonthlyClosingBonus(username = null, month = toMonthKey(nowDate())) {
     return getMonthlyClosingRecords(month).reduce((sum, closing) => sum + getClosingBonusValue(closing, username), 0);
@@ -848,12 +855,14 @@ Masukkan PIN admin:`);
     const currentClosingTime = getCurrentWIBTimeLabel(nowDate());
     const delayMinutes = getClosingDelayMinutes(nowDate());
     const bonusValue = delayMinutes * getClosingBonusPerMinute();
-    const { users, bonusByUser, totalBonus } = buildClosingBonusByUser(bonusValue, targetUsername);
-    if (!users.length) return showToast('User target tidak ditemukan / bukan staff aktif.', true);
+    const { users, targetUsers, bonusByUser, totalBonus } = buildClosingBonusByUser(bonusValue, targetUsername, today);
+    if (targetUsername && !targetUsers.length) return showToast('User target tidak ditemukan / bukan staff aktif.', true);
+    if (!targetUsername && !targetUsers.length) return showToast('Belum ada staff aktif untuk closing.', true);
     if (!confirm(`Yakin closing ${targetUsername ? getClosingTargetLabel(targetUser) : 'SEMUA USER'} sekarang?
 Lewat deadline: ${delayMinutes} menit
 Bonus closing: Rp ${formatRupiah(bonusValue)} per user
-Total user kena bonus: ${users.length}`)) return;
+User layak bonus (sudah absen): ${users.length}
+${users.length ? '' : 'Catatan: belum ada user yang absen, jadi bonus closing Rp 0.'}`)) return;
     setLoading(true);
     try {
       const docId = getClosingDocId(today, targetUsername);
