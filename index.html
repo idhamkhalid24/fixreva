@@ -201,6 +201,7 @@
   const TX_SYNC_LIMIT_ADMIN = 800, TX_SYNC_LIMIT_STAFF = 400, ATT_SYNC_LIMIT_ADMIN = 800, ATT_SYNC_LIMIT_STAFF = 400, AUDIT_SYNC_LIMIT = 40, CLOSING_SYNC_LIMIT = 120, HISTORY_PAGE_STEP = 30, INACTIVE_USER_STEP = 30;
   const CLOSING_DEADLINE_HOUR = 18, CLOSING_DEADLINE_MINUTE = 0, DEFAULT_CLOSING_BONUS_PER_MINUTE = 100, DEFAULT_TRANSACTION_BONUS_RATE = 0.015;
   let staffSwipeStartX = 0, staffSwipeStartY = 0, staffSwipeStartT = 0;
+  let adminClosingPanelHash = '', adminDashboardPanelsHash = '';
 
   const $ = (id) => document.getElementById(id);
   const setLoading = (s) => {
@@ -433,33 +434,39 @@
     `;
   }
   function getAdminDashboardData() {
-    const tx = getVisibleTransactions();
-    const att = getVisibleAttendance();
+    // Mode ringan untuk Beranda Admin: ranking dan detail berat tetap di tab Global.
     const today = toDateKey(nowDate());
-    const month = toMonthKey(nowDate());
-    const todayTx = tx.filter(t => getTransactionDateKey(t) === today);
-    const todayAtt = att.filter(a => extractDateKey(a) === today);
-    const omzetHariIni = todayTx.reduce((a,b)=>a+Number(b.amount||0),0);
-    const omzetBulanIni = tx.filter(t => getTransactionMonthKey(t) === month).reduce((a,b)=>a+Number(b.amount||0),0);
-    const activeToday = new Set(todayAtt.map(a => sanitizeUsername(a.user))).size;
-    const leaderboard = Object.values(tx.reduce((acc, t) => {
-      const key = sanitizeUsername(t.user);
-      if (!acc[key]) acc[key] = { user:key, name:t.name || key, omzet:0, transaksi:0 };
-      acc[key].omzet += Number(t.amount || 0);
-      acc[key].transaksi += 1;
-      return acc;
-    }, {})).sort((a,b)=>b.omzet-a.omzet).slice(0,5);
-    return { omzetHariIni, omzetBulanIni, activeToday, leaderboard, recentLogs: cachedAuditLogs.slice(0,5) };
+    const todayUsers = new Set();
+    for (const a of getVisibleAttendance()) {
+      if (extractDateKey(a) === today) todayUsers.add(sanitizeUsername(a.user));
+    }
+    return { activeToday: todayUsers.size, userCount: activeUsers().length };
+  }
+  function renderAdminClosingPanelMaybe(force = false) {
+    if (!isAdmin()) return;
+    const box = $('admin-closing-panel');
+    if (!box) return;
+    const targetValue = sanitizeUsername($('closing-target-user')?.value || 'global') || 'global';
+    const targetUser = targetValue === 'global' ? null : getUserByUsername(targetValue);
+    const closing = targetUser ? getTodayUserClosing(targetUser.username) : getTodayGlobalClosing();
+    const hash = [targetValue, closing?.id || '', closing?.closed === true ? '1' : '0', closing?.closingTime || '', closing?.manualClosingTime || '', closing?.editedAtMs || '', closing?.canceledAtMs || '', cachedUsers.length, getClosingBonusPerMinute()].join('|');
+    if (force || hash !== adminClosingPanelHash || !box.innerHTML.trim()) {
+      adminClosingPanelHash = hash;
+      renderAdminClosingPanel();
+    }
   }
   function renderAdminDashboardPanels() {
     if (!isAdmin()) return;
     const board = $('admin-dashboard-panels');
     if (!board) return;
     const stats = getAdminDashboardData();
+    const hash = `${stats.activeToday}|${stats.userCount}`;
+    if (hash === adminDashboardPanelsHash && board.innerHTML.trim()) return;
+    adminDashboardPanelsHash = hash;
     board.innerHTML = `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px" class="page-in s3">
         <div class="card" style="padding:10px 11px"><p class="label-xs" style="margin-bottom:5px;font-size:9px">User Aktif Hari Ini</p><p style="font-family:var(--num-font);font-size:18px;font-weight:850;color:var(--green);line-height:1">${stats.activeToday}</p></div>
-        <div class="card" style="padding:10px 11px"><p class="label-xs" style="margin-bottom:5px;font-size:9px">User Sistem</p><p style="font-family:var(--num-font);font-size:18px;font-weight:850;color:var(--accent);line-height:1">${activeUsers().length}</p></div>
+        <div class="card" style="padding:10px 11px"><p class="label-xs" style="margin-bottom:5px;font-size:9px">User Sistem</p><p style="font-family:var(--num-font);font-size:18px;font-weight:850;color:var(--accent);line-height:1">${stats.userCount}</p></div>
       </div>
       <button onclick="router.navigate('report')" class="btn btn-glass page-in s4" style="width:100%;padding:10px 12px;font-size:12px;margin-bottom:8px"><i class="fas fa-ranking-star"></i> Lihat Ranking Omzet di Global</button>
 `;
@@ -1758,7 +1765,7 @@ Masukkan PIN admin:`);
           </span>
         </div>
 
-        <select id="closing-target-user" class="g-input" onchange="renderAdminClosingPanel()" style="margin-bottom:10px;position:relative;z-index:1">
+        <select id="closing-target-user" class="g-input" onchange="renderAdminClosingPanelMaybe(true)" style="margin-bottom:10px;position:relative;z-index:1">
           <option value="global">Semua User / Closing Global</option>
           ${getStaffClosingUsers().map(u => `<option value="${escapeHtml(u.username)}" ${targetUsername === sanitizeUsername(u.username) ? 'selected' : ''}>${escapeHtml(u.name || u.username)} (@${escapeHtml(u.username)}) ${isUserClosedToday(u.username) ? '· SUDAH CLOSING' : ''}</option>`).join('')}
         </select>
@@ -1838,7 +1845,7 @@ Masukkan PIN admin:`);
     }
     if ($('scope-chip')) $('scope-chip').textContent = isAdmin() ? getSelectedUserLabel() : 'Data Saya';
     if ($('staff-closing-status')) $('staff-closing-status').innerHTML = renderClosingStatusHtml(true);
-    if (isAdmin()) renderAdminClosingPanel();
+    if (isAdmin()) renderAdminClosingPanelMaybe();
     if (!isAdmin()) {
       renderStaffTodayHistory();
       // Render card rata-rata absen bulanan
@@ -3235,6 +3242,7 @@ Masukkan PIN admin:`);
   window.handleEditClosingTime = handleEditClosingTime;
   window.handleCancelClosingToday = handleCancelClosingToday;
   window.renderAdminClosingPanel = renderAdminClosingPanel;
+  window.renderAdminClosingPanelMaybe = renderAdminClosingPanelMaybe;
   window.saveBonusSettings = saveBonusSettings;
   window.resetBonusSettingsForm = resetBonusSettingsForm;
   window.deleteTransaction = deleteTransaction;
