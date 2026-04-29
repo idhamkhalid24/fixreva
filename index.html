@@ -45,6 +45,7 @@
     .btn-success{background:linear-gradient(135deg, #16a34a, #15803d);color:white;border-radius:12px}
     .theme-toggle{width:38px;height:38px;background:var(--surface);border:1px solid var(--border);border-radius:11px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;color:var(--text-soft);flex-shrink:0}
     .theme-btn{color:var(--amber);background:var(--amber-dim);border-color:rgba(255,196,107,.22)}
+    .member-btn{color:var(--accent);background:var(--accent-dim);border-color:rgba(91,143,255,.22);text-decoration:none}
     .logout-btn{color:var(--red);background:var(--red-dim);border-color:rgba(255,107,107,.22)}
     .header-actions{display:flex;gap:8px;align-items:center}
     .stat-hero{background:linear-gradient(140deg, var(--bg3) 0%, var(--bg2) 100%);border:1px solid var(--border);border-radius:18px;padding:22px 20px;position:relative;overflow:hidden}
@@ -3061,6 +3062,7 @@ Masukkan PIN admin:`);
       const content = $('page-content');
       const nav = $('bottom-nav');
       const themeIcon = getTheme() === 'dark' ? '<i class="fas fa-moon"></i>' : '<i class="fas fa-sun"></i>';
+      const memberIcon = '<a href="https://idhamkhalid24.github.io/kode-khusus-member/" target="_blank" rel="noopener noreferrer" class="theme-toggle member-btn" title="Member" aria-label="Member"><i class="fas fa-id-card"></i></a>';
       if (!window.__staffSwipeReady && content) {
         content.addEventListener('touchstart', handleStaffSwipeStart, { passive:true });
         content.addEventListener('touchend', handleStaffSwipeEnd, { passive:true });
@@ -3094,6 +3096,7 @@ Masukkan PIN admin:`);
                 <h2 style="font-size:18px;font-weight:850;letter-spacing:-.03em">Kontrol Data</h2>
               </div>
               <div class="header-actions">
+                ${memberIcon}
                 <button class="theme-toggle theme-btn" onclick="toggleTheme()" style="width:34px;height:34px;border-radius:10px">${themeIcon}</button>
                 <button class="theme-toggle logout-btn" onclick="logout()" title="Logout" style="width:34px;height:34px;border-radius:10px"><i class="fas fa-power-off"></i></button>
               </div>
@@ -3125,6 +3128,7 @@ Masukkan PIN admin:`);
                 <h2 style="font-size:20px;font-weight:850;letter-spacing:-.03em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Bismillah Dulu</h2>
               </div>
               <div class="header-actions">
+                ${memberIcon}
                 <button class="theme-toggle theme-btn" onclick="toggleTheme()">${themeIcon}</button>
                 <button class="theme-toggle logout-btn" onclick="logout()" title="Logout"><i class="fas fa-power-off"></i></button>
               </div>
@@ -3189,6 +3193,7 @@ Masukkan PIN admin:`);
                   </div>
                 </div>
                 <div class="header-actions">
+                  ${memberIcon}
                   <button class="theme-toggle theme-btn" onclick="toggleTheme()">${themeIcon}</button>
                   <button class="theme-toggle logout-btn" onclick="logout()" title="Logout"><i class="fas fa-power-off"></i></button>
                 </div>
@@ -3204,6 +3209,7 @@ Masukkan PIN admin:`);
             <div style="padding:34px 0 18px;display:flex;justify-content:space-between;align-items:center" class="page-in">
               <div><p class="page-title">Semua Transaksi</p><p class="page-subtitle">Pantau transaksi seluruh user</p></div>
               <div style="display:flex;gap:8px">
+                ${memberIcon}
                 <button class="theme-toggle theme-btn" onclick="toggleTheme()">${themeIcon}</button>
                 <button class="theme-toggle logout-btn" onclick="logout()" title="Logout"><i class="fas fa-power-off"></i></button>
               </div>
@@ -3219,6 +3225,7 @@ Masukkan PIN admin:`);
             <div style="padding:34px 0 18px;display:flex;justify-content:space-between;align-items:center" class="page-in">
               <div><p class="page-title">${isAdmin() ? 'Laporan Global' : 'Laporan'}</p><p class="page-subtitle">${isAdmin() ? 'Ringkasan semua user dalam satu panel' : 'Omzet, hadir, bonus, dan ringkasan kerja'}</p></div>
               <div style="display:flex;gap:8px">
+                ${memberIcon}
                 <button class="theme-toggle theme-btn" onclick="toggleTheme()">${themeIcon}</button>
                 <button class="theme-toggle logout-btn" onclick="logout()" title="Logout"><i class="fas fa-power-off"></i></button>
               </div>
@@ -3244,7 +3251,7 @@ Masukkan PIN admin:`);
                   <p class="page-subtitle">Halaman khusus audit log</p>
                 </div>
               </div>
-              <div class="header-actions"><button class="theme-toggle theme-btn" onclick="toggleTheme()">${themeIcon}</button></div>
+              <div class="header-actions">${memberIcon}<button class="theme-toggle theme-btn" onclick="toggleTheme()">${themeIcon}</button></div>
             </div>
             <div id="admin-logs-list" class="page-in s1" style="padding-bottom:18px"></div>
           </div>`;
@@ -3256,7 +3263,7 @@ Masukkan PIN admin:`);
           <div class="page-pad">
             <div style="padding:50px 0 18px;display:flex;justify-content:space-between;align-items:center" class="page-in">
               <p class="page-title">${isAdmin() ? 'User & Sistem' : 'Sistem'}</p>
-              <div class="header-actions"><button class="theme-toggle theme-btn" onclick="toggleTheme()">${themeIcon}</button></div>
+              <div class="header-actions">${memberIcon}<button class="theme-toggle theme-btn" onclick="toggleTheme()">${themeIcon}</button></div>
             </div>
             <div style="text-align:center;margin-bottom:24px" class="page-in">
               <div style="width:76px;height:76px;border-radius:50%;background:linear-gradient(135deg, var(--accent), #818cf8);display:flex;align-items:center;justify-content:center;font-size:28px;color:white;margin:0 auto">${escapeHtml((currentUser.name||'?').charAt(0).toUpperCase())}</div>
