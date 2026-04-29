@@ -1086,18 +1086,40 @@
       extractDateKey(a) === dateKey
     );
   }
+  function hasUserClosingOnDate(username, dateKey = toDateKey(nowDate())) {
+    const target = sanitizeUsername(username || '');
+    if (!target || !dateKey) return false;
+    return (cachedClosings || []).some(c => {
+      if (!c || c.closed !== true || c.dateKey !== dateKey) return false;
+      if (c.type === 'bonus_settings' || c.id === '__bonus_settings' || c.dateKey === '__bonus_settings') return false;
+      const scope = c.scope || (c.user ? 'user' : 'global');
+      return scope === 'user' && sanitizeUsername(c.user) === target;
+    });
+  }
   function buildClosingBonusByUser(bonusValue, targetUsername = null, dateKey = toDateKey(nowDate())) {
     const target = targetUsername ? sanitizeUsername(targetUsername) : null;
-    const targetUsers = target ? getStaffClosingUsers().filter(u => sanitizeUsername(u.username) === target) : getStaffClosingUsers();
+    const allStaffTargets = getStaffClosingUsers();
+    const targetUsers = target
+      ? allStaffTargets.filter(u => sanitizeUsername(u.username) === target)
+      : allStaffTargets;
+
+    // FIX anti bonus dobel:
+    // Saat closing GLOBAL, user yang sudah closing per-user di tanggal yang sama tetap ikut terkunci,
+    // tetapi TIDAK dimasukkan lagi ke bonusByUser supaya bonus closing tidak masuk 2x.
+    // Saat closing PER USER, pengecekan existing tetap dilakukan di handleClosingDay().
+    const eligibleUsers = target
+      ? targetUsers
+      : targetUsers.filter(u => !hasUserClosingOnDate(u.username, dateKey));
+
     // Bonus closing hanya untuk staff biasa yang sudah absen hari ini.
     // Karyawan harian boleh di-closing oleh admin, tapi tidak dapat bonus closing.
-    const bonusUsers = targetUsers.filter(u => !isDailyEmployee(u) && hasUserAttendanceOnDate(u.username, dateKey));
+    const bonusUsers = eligibleUsers.filter(u => !isDailyEmployee(u) && hasUserAttendanceOnDate(u.username, dateKey));
     const bonusByUser = bonusUsers.reduce((acc, u) => {
       acc[sanitizeUsername(u.username)] = Number(bonusValue || 0);
       return acc;
     }, {});
     const totalBonus = Object.values(bonusByUser).reduce((a,b)=>a+Number(b||0),0);
-    return { users: bonusUsers, targetUsers, bonusUsers, bonusByUser, totalBonus };
+    return { users: bonusUsers, targetUsers, eligibleUsers, bonusUsers, bonusByUser, totalBonus };
   }
   function getMonthlyClosingRecords(month = toMonthKey(nowDate())) {
     return cachedClosings.filter(c => c && c.closed === true && c.type !== 'bonus_settings' && c.id !== '__bonus_settings' && c.dateKey !== '__bonus_settings' && String(c.monthKey || c.dateKey || '').startsWith(month));
